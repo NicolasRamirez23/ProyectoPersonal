@@ -11,6 +11,13 @@ export interface ArchitecturalAttachment {
   createdAt: string;
 }
 
+export interface ArchitecturalSubconcept {
+  id: string;
+  name: string;
+  scope: string;
+  amount?: number;
+}
+
 export interface ArchitecturalCharge {
   id: string;
   concept: string;
@@ -19,6 +26,7 @@ export interface ArchitecturalCharge {
   status: ArchitecturalChargeStatus;
   paymentDate?: string;
   attachments: ArchitecturalAttachment[];
+  subconcepts: ArchitecturalSubconcept[];
 }
 
 export interface ArchitecturalProject {

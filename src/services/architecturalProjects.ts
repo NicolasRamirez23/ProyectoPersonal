@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { ArchitecturalAttachment, ArchitecturalCharge, ArchitecturalProject } from '../types/architecture';
+import { ArchitecturalAttachment, ArchitecturalCharge, ArchitecturalProject, ArchitecturalSubconcept } from '../types/architecture';
 
 const BUCKET = 'arquitectura';
 
@@ -19,6 +19,7 @@ interface DbCharge {
   importe: number;
   estatus: ArchitecturalCharge['status'];
   fecha_pago: string | null;
+  subconceptos: ArchitecturalSubconcept[] | null;
   archivos_conceptos_arquitectonicos?: DbAttachment[];
 }
 
@@ -86,6 +87,7 @@ async function mapProjects(rows: DbProject[]): Promise<ArchitecturalProject[]> {
       amount: Number(charge.importe),
       status: charge.estatus,
       paymentDate: charge.fecha_pago || undefined,
+      subconcepts: Array.isArray(charge.subconceptos) ? charge.subconceptos : [],
       attachments: (charge.archivos_conceptos_arquitectonicos || []).map((file): ArchitecturalAttachment => ({
         id: file.id,
         name: file.nombre_archivo,
@@ -196,6 +198,7 @@ export const architecturalProjectsService = {
         importe: charge.amount,
         estatus: charge.status,
         fecha_pago: charge.status === 'pagado' ? charge.paymentDate || new Date().toISOString().slice(0, 10) : null,
+        subconceptos: charge.subconcepts,
       });
       if (chargeError) throw chargeError;
 

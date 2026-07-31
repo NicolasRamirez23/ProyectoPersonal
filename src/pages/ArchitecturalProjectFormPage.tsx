@@ -2,14 +2,18 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Building2, DollarSign, Download, Eye, File, FileCheck2, FileText, Landmark, Loader2, Paperclip, Plus, ReceiptText, Save, Trash2, Upload, X } from 'lucide-react';
 import { architecturalProjectsService } from '../services/architecturalProjects';
-import { ArchitecturalAttachment, ArchitecturalCharge, ArchitecturalProjectStatus } from '../types/architecture';
+import { ArchitecturalAttachment, ArchitecturalCharge, ArchitecturalProjectStatus, ArchitecturalSubconcept } from '../types/architecture';
 import { formatCurrency } from '../lib/utils';
 import { catalogsService } from '../services/catalogs';
-import { generateArchitecturalInvoice, generateArchitecturalReceipt } from '../lib/architecturalDocuments';
+import { generateArchitecturalInvoice, generateArchitecturalQuotation, generateArchitecturalReceipt } from '../lib/architecturalDocuments';
 import { extractFiscalCertificate } from '../lib/fiscalCertificate';
 
 const newCharge = (): ArchitecturalCharge => ({
-  id: crypto.randomUUID(), concept: '', description: '', amount: 0, status: 'pendiente', attachments: [],
+  id: crypto.randomUUID(), concept: '', description: '', amount: 0, status: 'pendiente', attachments: [], subconcepts: [],
+});
+
+const newSubconcept = (): ArchitecturalSubconcept => ({
+  id: crypto.randomUUID(), name: '', scope: '', amount: undefined,
 });
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -143,6 +147,33 @@ export function ArchitecturalProjectFormPage() {
 
   const updateCharge = (chargeId: string, patch: Partial<ArchitecturalCharge>) =>
     setCharges((items) => items.map((item) => item.id === chargeId ? { ...item, ...patch } : item));
+
+  const updateSubconcept = (chargeId: string, subconceptId: string, patch: Partial<ArchitecturalSubconcept>) => {
+    const charge = charges.find((item) => item.id === chargeId);
+    if (!charge) return;
+    const subconcepts = charge.subconcepts.map((item) =>
+      item.id === subconceptId ? { ...item, ...patch } : item);
+    const detailedAmounts = subconcepts.filter((item) => Number(item.amount) > 0);
+    updateCharge(chargeId, {
+      subconcepts,
+      ...(detailedAmounts.length
+        ? { amount: subconcepts.reduce((sum, item) => sum + Number(item.amount || 0), 0) }
+        : {}),
+    });
+  };
+
+  const removeSubconcept = (chargeId: string, subconceptId: string) => {
+    const charge = charges.find((item) => item.id === chargeId);
+    if (!charge) return;
+    const subconcepts = charge.subconcepts.filter((item) => item.id !== subconceptId);
+    const detailedAmounts = subconcepts.filter((item) => Number(item.amount) > 0);
+    updateCharge(chargeId, {
+      subconcepts,
+      ...(detailedAmounts.length
+        ? { amount: subconcepts.reduce((sum, item) => sum + Number(item.amount || 0), 0) }
+        : {}),
+    });
+  };
 
   const addAttachments = async (chargeId: string, files: FileList | null) => {
     if (!files?.length) return;
@@ -339,9 +370,19 @@ export function ArchitecturalProjectFormPage() {
             <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600"><DollarSign className="h-5 w-5" /></div>
             <div><h2 className="text-lg font-bold text-slate-800">Conceptos de cobro</h2><p className="text-xs text-slate-500">Planos, eléctricos, renders o cualquier otro servicio.</p></div>
           </div>
-          <button type="button" onClick={() => setCharges((items) => [...items, newCharge()])} className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100">
-            <Plus className="h-4 w-4" /> Agregar concepto
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              disabled={!charges.some((charge) => charge.concept.trim())}
+              onClick={() => generateArchitecturalQuotation(documentProject, charges.filter((charge) => charge.concept.trim()))}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <FileText className="h-4 w-4" /> Generar cotización PDF
+            </button>
+            <button type="button" onClick={() => setCharges((items) => [...items, newCharge()])} className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100">
+              <Plus className="h-4 w-4" /> Agregar concepto
+            </button>
+          </div>
         </div>
         <div className="space-y-4">
           {charges.map((charge, index) => (
@@ -349,9 +390,83 @@ export function ArchitecturalProjectFormPage() {
               <div className="grid gap-3 md:grid-cols-[1.2fr_1.5fr_.7fr_.7fr_auto] md:items-end">
                 <SelectField label={`Concepto ${index + 1} *`} value={charge.concept} onChange={(value) => updateCharge(charge.id, { concept: value })} options={['', ...withCurrentValue(chargeConceptOptions, charge.concept)]} />
                 <Field label="Descripción" value={charge.description} onChange={(value) => updateCharge(charge.id, { description: value })} placeholder="Qué incluye" />
-                <Field label={invoiceRequested ? 'Importe antes de IVA' : 'Importe'} type="number" min="0" step="0.01" value={String(charge.amount || '')} onChange={(value) => updateCharge(charge.id, { amount: Number(value) })} placeholder="0.00" />
+                <Field
+                  label={charge.subconcepts.some((item) => Number(item.amount) > 0)
+                    ? 'Importe calculado'
+                    : invoiceRequested ? 'Importe antes de IVA' : 'Importe'}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  disabled={charge.subconcepts.some((item) => Number(item.amount) > 0)}
+                  value={String(charge.amount || '')}
+                  onChange={(value) => updateCharge(charge.id, { amount: Number(value) })}
+                  placeholder="0.00"
+                />
                 <SelectField label="Estado" value={charge.status} onChange={(value) => updateCharge(charge.id, { status: value as ArchitecturalCharge['status'], paymentDate: value === 'pagado' ? charge.paymentDate || new Date().toISOString().slice(0, 10) : undefined })} options={['pendiente', 'pagado']} />
                 <button type="button" title="Eliminar concepto" onClick={() => setCharges((items) => items.filter((item) => item.id !== charge.id))} className="rounded-xl border border-red-100 bg-white p-3 text-red-500 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-blue-100 bg-white p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">Actividades y alcances</p>
+                    <p className="mt-0.5 text-xs text-slate-500">Desglosa lo que incluye este concepto. El importe de cada actividad es opcional.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateCharge(charge.id, { subconcepts: [...charge.subconcepts, newSubconcept()] })}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100"
+                  >
+                    <Plus className="h-4 w-4" /> Agregar actividad
+                  </button>
+                </div>
+
+                {charge.subconcepts.length ? (
+                  <div className="mt-4 space-y-3">
+                    {charge.subconcepts.map((subconcept, subIndex) => (
+                      <div key={subconcept.id} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-[1fr_1.5fr_.55fr_auto] md:items-end">
+                        <Field
+                          label={`Actividad ${subIndex + 1}`}
+                          value={subconcept.name}
+                          onChange={(value) => updateSubconcept(charge.id, subconcept.id, { name: value })}
+                          placeholder="Ej. Plano de iluminación"
+                        />
+                        <Field
+                          label="Alcance"
+                          value={subconcept.scope}
+                          onChange={(value) => updateSubconcept(charge.id, subconcept.id, { scope: value })}
+                          placeholder="Entregables, revisiones o límites"
+                        />
+                        <Field
+                          label="Importe opcional"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={subconcept.amount ? String(subconcept.amount) : ''}
+                          onChange={(value) => updateSubconcept(charge.id, subconcept.id, {
+                            amount: value === '' ? undefined : Number(value),
+                          })}
+                          placeholder="0.00"
+                        />
+                        <button
+                          type="button"
+                          title="Eliminar actividad"
+                          onClick={() => removeSubconcept(charge.id, subconcept.id)}
+                          className="rounded-xl border border-red-100 bg-white p-3 text-red-500 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                    {charge.subconcepts.some((item) => Number(item.amount) > 0) && (
+                      <p className="text-right text-xs font-medium text-blue-700">
+                        El importe del concepto se calcula con la suma de las actividades.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-400">Sin actividades desglosadas.</p>
+                )}
               </div>
 
               <div className="mt-4 border-t border-slate-200 pt-4">
@@ -457,7 +572,7 @@ export function ArchitecturalProjectFormPage() {
 
 interface FieldProps {
   label: string; value: string; onChange: (value: string) => void; required?: boolean;
-  type?: string; placeholder?: string; min?: string; step?: string;
+  type?: string; placeholder?: string; min?: string; step?: string; disabled?: boolean;
 }
 function Field({ label, value, onChange, required, type = 'text', ...props }: FieldProps) {
   return <label className="block text-sm font-medium text-slate-700">{label}{required && <span className="text-red-500"> *</span>}<input {...props} type={type} required={required} value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" /></label>;

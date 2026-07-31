@@ -49,6 +49,18 @@ function fileName(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
+function chargeDetails(charge: ArchitecturalCharge) {
+  const activities = (charge.subconcepts || [])
+    .filter((item) => item.name.trim() || item.scope.trim())
+    .map((item, index) => {
+      const title = item.name.trim() || `Actividad ${index + 1}`;
+      const scope = item.scope.trim() ? ` - ${item.scope.trim()}` : '';
+      const amount = Number(item.amount) > 0 ? ` (${money.format(Number(item.amount))})` : '';
+      return `${index + 1}. ${title}${scope}${amount}`;
+    });
+  return [charge.description || '', ...activities].filter(Boolean).join('\n') || 'Servicio arquitectónico';
+}
+
 export function buildArchitecturalReceipt(project: ArchitecturalProject, charge: ArchitecturalCharge) {
   const doc = new jsPDF();
   const folio = `REC-${charge.id.slice(0, 8).toUpperCase()}`;
@@ -81,7 +93,7 @@ export function buildArchitecturalReceipt(project: ArchitecturalProject, charge:
     head: [['Concepto', 'Descripcion', 'Fecha de pago', 'Importe']],
     body: [[
       charge.concept,
-      charge.description || 'Servicio arquitectonico',
+      chargeDetails(charge),
       charge.paymentDate ? new Date(`${charge.paymentDate}T12:00:00`).toLocaleDateString('es-MX') : new Date().toLocaleDateString('es-MX'),
       money.format(receivedAmount),
     ]],
@@ -104,6 +116,160 @@ export function buildArchitecturalReceipt(project: ArchitecturalProject, charge:
 
 export function generateArchitecturalReceipt(project: ArchitecturalProject, charge: ArchitecturalCharge) {
   buildArchitecturalReceipt(project, charge).save(`REC-${charge.id.slice(0, 8).toUpperCase()}_${fileName(project.projectName)}.pdf`);
+}
+
+export function buildArchitecturalQuotation(project: ArchitecturalProject, charges: ArchitecturalCharge[]) {
+  if (!charges.length) throw new Error('No hay conceptos para cotizar.');
+  const doc = new jsPDF();
+  const folio = `COT-${project.id.slice(0, 6).toUpperCase()}-${Date.now().toString().slice(-5)}`;
+  header(doc, 'COTIZACIÓN', folio);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(37, 99, 235);
+  doc.text('INFORMACIÓN DEL PROYECTO', 16, 55);
+
+  autoTable(doc, {
+    startY: 59,
+    head: [[
+      { content: 'CLIENTE', colSpan: 2 },
+      { content: 'OBRA', colSpan: 2 },
+    ]],
+    body: [
+      ['Nombre', project.clientName, 'Proyecto', project.projectName],
+      ['Teléfono', project.clientPhone || 'No proporcionado', 'Tipo', project.projectType],
+      ['Fecha', new Date().toLocaleDateString('es-MX'), 'Construcción', project.constructionType],
+      ['', '', 'Ubicación', project.location || 'No proporcionada'],
+    ],
+    theme: 'plain',
+    margin: { left: 16, right: 16 },
+    headStyles: {
+      fillColor: [239, 246, 255],
+      textColor: [30, 64, 175],
+      fontSize: 7.5,
+      fontStyle: 'bold',
+      cellPadding: 3.5,
+    },
+    bodyStyles: {
+      textColor: [30, 41, 59],
+      fontSize: 8.2,
+      cellPadding: { top: 3, right: 4, bottom: 3, left: 4 },
+      valign: 'top',
+      overflow: 'linebreak',
+    },
+    columnStyles: {
+      0: { cellWidth: 23, fontStyle: 'bold', fillColor: [248, 250, 252], textColor: [100, 116, 139] },
+      1: { cellWidth: 79 },
+      2: { cellWidth: 29, fontStyle: 'bold', fillColor: [248, 250, 252], textColor: [100, 116, 139] },
+      3: { cellWidth: 47 },
+    },
+    didDrawCell: (data) => {
+      if (data.section === 'body') {
+        doc.setDrawColor(226, 232, 240);
+        doc.line(data.cell.x, data.cell.y + data.cell.height, data.cell.x + data.cell.width, data.cell.y + data.cell.height);
+      }
+    },
+  });
+
+  const infoFinalY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || 95;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(37, 99, 235);
+  doc.text('ALCANCE Y COSTOS', 16, infoFinalY + 10);
+
+  autoTable(doc, {
+    startY: infoFinalY + 14,
+    head: [['#', 'CONCEPTO', 'DESCRIPCIÓN', 'IMPORTE']],
+    body: charges.map((charge, index) => [
+      String(index + 1),
+      charge.concept,
+      chargeDetails(charge),
+      money.format(Number(charge.amount)),
+    ]),
+    theme: 'plain',
+    headStyles: {
+      fillColor: [30, 64, 175],
+      textColor: [255, 255, 255],
+      fontSize: 7.5,
+      fontStyle: 'bold',
+      cellPadding: 3.5,
+    },
+    bodyStyles: {
+      fontSize: 8.2,
+      textColor: [30, 41, 59],
+      cellPadding: { top: 4, right: 3.5, bottom: 4, left: 3.5 },
+      lineColor: [226, 232, 240],
+      lineWidth: { bottom: 0.15 },
+    },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 12, textColor: [100, 116, 139] },
+      1: { cellWidth: 50, fontStyle: 'bold' },
+      3: { halign: 'right', cellWidth: 36, fontStyle: 'bold' },
+    },
+    margin: { left: 16, right: 16, top: 54, bottom: 28 },
+    didDrawPage: (data) => {
+      if (data.pageNumber > 1) header(doc, 'COTIZACIÓN', folio);
+    },
+  });
+
+  const subtotal = charges.reduce((sum, charge) => sum + Number(charge.amount), 0);
+  const tax = project.invoiceRequested ? subtotal * 0.16 : 0;
+  const total = subtotal + tax;
+  let finalY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || 130;
+  if (finalY > 218) {
+    doc.addPage();
+    header(doc, 'COTIZACIÓN', folio);
+    finalY = 56;
+  }
+
+  const totalsHeight = project.invoiceRequested ? 43 : 34;
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(121, finalY + 7, 73, totalsHeight, 3, 3, 'F');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  doc.text('Subtotal', 126, finalY + 17);
+  doc.text(money.format(subtotal), 189, finalY + 17, { align: 'right' });
+  let totalLineY = finalY + 23;
+  if (project.invoiceRequested) {
+    doc.text('IVA (16%)', 126, finalY + 25);
+    doc.text(money.format(tax), 189, finalY + 25, { align: 'right' });
+    totalLineY = finalY + 31;
+  }
+  doc.setDrawColor(203, 213, 225);
+  doc.line(126, totalLineY, 189, totalLineY);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(30, 64, 175);
+  doc.text('TOTAL', 126, totalLineY + 11);
+  doc.text(money.format(total), 189, totalLineY + 11, { align: 'right' });
+
+  doc.setFillColor(239, 246, 255);
+  doc.roundedRect(16, finalY + 7, 96, Math.max(34, totalsHeight), 3, 3, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(30, 64, 175);
+  doc.text('CONDICIONES DE LA COTIZACIÓN', 21, finalY + 16);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  const conditions = [
+    'Vigencia: 15 días naturales a partir de la fecha de emisión.',
+    project.invoiceRequested
+      ? 'Los importes incluyen IVA conforme al desglose mostrado.'
+      : 'Los importes mostrados no incluyen IVA.',
+    project.notes ? `Notas: ${project.notes}` : 'El alcance final estará sujeto a los acuerdos del proyecto.',
+  ];
+  doc.setFontSize(7.3);
+  doc.text(doc.splitTextToSize(conditions.join('\n'), 86), 21, finalY + 22);
+
+  footer(doc, 'Cotización informativa sujeta a confirmación de alcance, tiempos y condiciones de pago.');
+  return doc;
+}
+
+export function generateArchitecturalQuotation(project: ArchitecturalProject, charges: ArchitecturalCharge[]) {
+  buildArchitecturalQuotation(project, charges)
+    .save(`COT_${fileName(project.projectName)}_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 export function buildArchitecturalInvoice(project: ArchitecturalProject, charges: ArchitecturalCharge[]) {
@@ -176,7 +342,7 @@ export function buildArchitecturalInvoice(project: ArchitecturalProject, charges
   autoTable(doc, {
     startY: infoFinalY + 14,
     head: [['CANT.', 'CONCEPTO', 'DESCRIPCIÓN', 'IMPORTE']],
-    body: charges.map((charge) => ['1', charge.concept, charge.description || '-', money.format(charge.amount)]),
+    body: charges.map((charge) => ['1', charge.concept, chargeDetails(charge), money.format(charge.amount)]),
     theme: 'plain',
     headStyles: {
       fillColor: [30, 64, 175],
