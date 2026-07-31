@@ -33,12 +33,12 @@ export default function App() {
                 <Route path="/listado" element={<ProjectListPage />} />
                 <Route path="/registro" element={<ProjectRegistrationPage />} />
                 <Route path="/editar/:id" element={<ProjectEditPage />} />
-                <Route path="/catalogos" element={<CatalogsPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['admin', 'arquitectura']} />}>
                 <Route path="/arquitectura" element={<ArchitecturalProjectListPage />} />
                 <Route path="/arquitectura/nuevo" element={<ArchitecturalProjectFormPage />} />
                 <Route path="/arquitectura/editar/:id" element={<ArchitecturalProjectFormPage />} />
+                <Route path="/catalogos" element={<CatalogsPage />} />
               </Route>
             </Route>
           </Route>

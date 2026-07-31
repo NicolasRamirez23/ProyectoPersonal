@@ -1,8 +1,11 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { BookOpen, Check, GripVertical, Loader2, Plus, Power, Save, Trash2, X } from 'lucide-react';
 import { Catalog, catalogsService, CatalogValue } from '../services/catalogs';
+import { useAuth } from '../auth/AuthContext';
 
 export function CatalogsPage() {
+  const { profile } = useAuth();
+  const isAdmin = profile?.rol === 'admin';
   const [catalogs, setCatalogs] = useState<Catalog[]>([]);
   const [selectedKey, setSelectedKey] = useState('');
   const [newValue, setNewValue] = useState('');
@@ -71,7 +74,7 @@ export function CatalogsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">Catálogos</h1>
-        <p className="mt-1 text-slate-500">Administra las opciones utilizadas en los formularios del sistema.</p>
+        <p className="mt-1 text-slate-500">{isAdmin ? 'Administra las opciones utilizadas en los formularios del sistema.' : 'Consulta las opciones disponibles en los formularios de arquitectura.'}</p>
       </div>
 
       {error && <div className="flex items-start justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"><span>{error}</span><button onClick={() => setError('')}><X className="h-4 w-4" /></button></div>}
@@ -95,15 +98,17 @@ export function CatalogsPage() {
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <header className="border-b border-slate-100 p-6">
                 <div className="flex items-center gap-3"><div className="rounded-xl bg-blue-50 p-2.5 text-blue-600"><BookOpen className="h-5 w-5" /></div><div><h2 className="text-xl font-bold text-slate-900">{selected.name}</h2><p className="text-sm text-slate-500">{selected.description}</p></div></div>
-                <form onSubmit={addValue} className="mt-5 flex flex-col gap-3 sm:flex-row">
-                  <input required value={newValue} onChange={(event) => setNewValue(event.target.value)} placeholder="Escribe un nuevo valor..." className="h-11 flex-1 rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" />
-                  <button disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Agregar valor</button>
-                </form>
+                {isAdmin && (
+                  <form onSubmit={addValue} className="mt-5 flex flex-col gap-3 sm:flex-row">
+                    <input required value={newValue} onChange={(event) => setNewValue(event.target.value)} placeholder="Escribe un nuevo valor..." className="h-11 flex-1 rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" />
+                    <button disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Agregar valor</button>
+                  </form>
+                )}
               </header>
 
               <div className="divide-y divide-slate-100">
                 {selected.values.map((value) => (
-                  <CatalogValueRow key={value.id} value={value} onUpdate={updateValue} onRemove={removeValue} />
+                  <CatalogValueRow key={value.id} value={value} readOnly={!isAdmin} onUpdate={updateValue} onRemove={removeValue} />
                 ))}
                 {!selected.values.length && <p className="p-10 text-center text-sm text-slate-400">Este catálogo todavía no tiene valores.</p>}
               </div>
@@ -115,7 +120,7 @@ export function CatalogsPage() {
   );
 }
 
-function CatalogValueRow({ value, onUpdate, onRemove }: { value: CatalogValue; onUpdate: (value: CatalogValue, patch: Partial<CatalogValue>) => Promise<void>; onRemove: (value: CatalogValue) => Promise<void> }) {
+function CatalogValueRow({ value, readOnly, onUpdate, onRemove }: { value: CatalogValue; readOnly: boolean; onUpdate: (value: CatalogValue, patch: Partial<CatalogValue>) => Promise<void>; onRemove: (value: CatalogValue) => Promise<void> }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(value.value);
   const [order, setOrder] = useState(String(value.order));
@@ -133,9 +138,13 @@ function CatalogValueRow({ value, onUpdate, onRemove }: { value: CatalogValue; o
       ) : (
         <>
           <div className="min-w-0 flex-1"><p className="font-bold text-slate-700">{value.value}</p><p className="text-[10px] uppercase tracking-wide text-slate-400">Orden {value.order} · {value.active ? 'Activo' : 'Inactivo'}</p></div>
-          <button onClick={() => setEditing(true)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"><Save className="h-3.5 w-3.5" /> Editar</button>
-          <button onClick={() => void onUpdate(value, { active: !value.active })} className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${value.active ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}><Power className="h-3.5 w-3.5" /> {value.active ? 'Desactivar' : 'Activar'}</button>
-          <button onClick={() => void onRemove(value)} className="rounded-lg border border-red-100 p-2.5 text-red-500 hover:bg-red-50" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
+          {!readOnly && (
+            <>
+              <button onClick={() => setEditing(true)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"><Save className="h-3.5 w-3.5" /> Editar</button>
+              <button onClick={() => void onUpdate(value, { active: !value.active })} className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${value.active ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}><Power className="h-3.5 w-3.5" /> {value.active ? 'Desactivar' : 'Activar'}</button>
+              <button onClick={() => void onRemove(value)} className="rounded-lg border border-red-100 p-2.5 text-red-500 hover:bg-red-50" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
+            </>
+          )}
         </>
       )}
     </div>
