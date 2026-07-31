@@ -30,6 +30,14 @@ interface DbProject {
   tipo_construccion: string;
   tipo_proyecto: string;
   ubicacion: string | null;
+  requiere_factura: boolean | null;
+  razon_social: string | null;
+  rfc: string | null;
+  domicilio_fiscal: string | null;
+  codigo_postal_fiscal: string | null;
+  regimen_fiscal: string | null;
+  correo_facturacion: string | null;
+  uso_cfdi: string | null;
   estatus: ArchitecturalProject['status'];
   notas: string | null;
   created_at: string;
@@ -59,6 +67,14 @@ async function mapProjects(rows: DbProject[]): Promise<ArchitecturalProject[]> {
     constructionType: project.tipo_construccion,
     projectType: project.tipo_proyecto,
     location: project.ubicacion || '',
+    invoiceRequested: Boolean(project.requiere_factura),
+    businessName: project.razon_social || '',
+    taxId: project.rfc || '',
+    taxAddress: project.domicilio_fiscal || '',
+    taxPostalCode: project.codigo_postal_fiscal || '',
+    taxRegime: project.regimen_fiscal || '',
+    billingEmail: project.correo_facturacion || '',
+    cfdiUse: project.uso_cfdi || '',
     status: project.estatus,
     notes: project.notas || '',
     createdAt: project.created_at,
@@ -137,6 +153,14 @@ export const architecturalProjectsService = {
       tipo_construccion: project.constructionType,
       tipo_proyecto: project.projectType,
       ubicacion: project.location || null,
+      requiere_factura: project.invoiceRequested,
+      razon_social: project.businessName || null,
+      rfc: project.taxId || null,
+      domicilio_fiscal: project.taxAddress || null,
+      codigo_postal_fiscal: project.taxPostalCode || null,
+      regimen_fiscal: project.taxRegime || null,
+      correo_facturacion: project.billingEmail || null,
+      uso_cfdi: project.cfdiUse || null,
       estatus: project.status,
       notas: project.notes || null,
     };

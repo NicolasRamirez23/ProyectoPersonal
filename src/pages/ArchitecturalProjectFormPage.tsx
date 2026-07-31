@@ -1,10 +1,12 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Building2, DollarSign, Download, Eye, File, Paperclip, Plus, Save, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Building2, DollarSign, Download, Eye, File, FileCheck2, FileText, Landmark, Loader2, Paperclip, Plus, ReceiptText, Save, Trash2, Upload, X } from 'lucide-react';
 import { architecturalProjectsService } from '../services/architecturalProjects';
 import { ArchitecturalAttachment, ArchitecturalCharge, ArchitecturalProjectStatus } from '../types/architecture';
 import { formatCurrency } from '../lib/utils';
 import { catalogsService } from '../services/catalogs';
+import { generateArchitecturalInvoice, generateArchitecturalReceipt } from '../lib/architecturalDocuments';
+import { extractFiscalCertificate } from '../lib/fiscalCertificate';
 
 const newCharge = (): ArchitecturalCharge => ({
   id: crypto.randomUUID(), concept: '', description: '', amount: 0, status: 'pendiente', attachments: [],
@@ -21,6 +23,18 @@ export function ArchitecturalProjectFormPage() {
   const [constructionType, setConstructionType] = useState('Casa habitación');
   const [projectType, setProjectType] = useState('Proyecto nuevo');
   const [location, setLocation] = useState('');
+  const [invoiceRequested, setInvoiceRequested] = useState(false);
+  const [businessName, setBusinessName] = useState('');
+  const [taxId, setTaxId] = useState('');
+  const [taxAddress, setTaxAddress] = useState('');
+  const [taxPostalCode, setTaxPostalCode] = useState('');
+  const [taxRegime, setTaxRegime] = useState('');
+  const [billingEmail, setBillingEmail] = useState('');
+  const [cfdiUse, setCfdiUse] = useState('');
+  const [extractingCertificate, setExtractingCertificate] = useState(false);
+  const [certificateProgress, setCertificateProgress] = useState('');
+  const [certificateMessage, setCertificateMessage] = useState('');
+  const [detectedTaxRegimes, setDetectedTaxRegimes] = useState<string[]>([]);
   const [status, setStatus] = useState<ArchitecturalProjectStatus>('cotizacion');
   const [notes, setNotes] = useState('');
   const [charges, setCharges] = useState<ArchitecturalCharge[]>([newCharge()]);
@@ -32,20 +46,33 @@ export function ArchitecturalProjectFormPage() {
   const [constructionOptions, setConstructionOptions] = useState(['Casa habitación', 'Departamento', 'Edificio', 'Local comercial', 'Oficina', 'Remodelación', 'Ampliación', 'Otro']);
   const [projectOptions, setProjectOptions] = useState(['Proyecto nuevo', 'Remodelación', 'Ampliación', 'Regularización', 'Diseño de interiores', 'Levantamiento', 'Otro']);
   const [chargeConceptOptions, setChargeConceptOptions] = useState<string[]>([]);
+  const [cfdiUseOptions, setCfdiUseOptions] = useState<string[]>([]);
+  const [taxRegimeOptions, setTaxRegimeOptions] = useState<string[]>([]);
 
   useEffect(() => {
     void Promise.all([
       catalogsService.getActiveValues('tipos_construccion'),
       catalogsService.getActiveValues('tipos_proyecto'),
       catalogsService.getActiveValues('conceptos_cobro'),
-    ]).then(([constructionValues, projectValues, conceptValues]) => {
+      catalogsService.getActiveValues('usos_cfdi'),
+      catalogsService.getActiveValues('regimenes_fiscales'),
+    ]).then(([constructionValues, projectValues, conceptValues, cfdiValues, regimeValues]) => {
       setConstructionOptions(constructionValues.map((item) => item.value));
       setProjectOptions(projectValues.map((item) => item.value));
       setChargeConceptOptions(conceptValues.map((item) => item.value));
+      setCfdiUseOptions(cfdiValues.map((item) => item.value));
+      setTaxRegimeOptions(regimeValues.map((item) => item.value));
     }).catch(() => {
       setSaveError('No se pudieron cargar los catálogos. Se muestran las opciones predeterminadas.');
     });
   }, []);
+
+  useEffect(() => {
+    if (!taxRegime || !taxRegimeOptions.length) return;
+    const currentNormalized = normalizeFiscalLabel(taxRegime);
+    const canonical = taxRegimeOptions.find((option) => normalizeFiscalLabel(option) === currentNormalized);
+    if (canonical && canonical !== taxRegime) setTaxRegime(canonical);
+  }, [taxRegime, taxRegimeOptions]);
 
   useEffect(() => {
     if (!id) return;
@@ -58,6 +85,14 @@ export function ArchitecturalProjectFormPage() {
         setConstructionType(current.constructionType);
         setProjectType(current.projectType);
         setLocation(current.location);
+        setInvoiceRequested(current.invoiceRequested);
+        setBusinessName(current.businessName);
+        setTaxId(current.taxId);
+        setTaxAddress(current.taxAddress);
+        setTaxPostalCode(current.taxPostalCode);
+        setTaxRegime(current.taxRegime);
+        setBillingEmail(current.billingEmail);
+        setCfdiUse(current.cfdiUse);
         setStatus(current.status);
         setNotes(current.notes);
         setCharges(current.charges.length ? current.charges : [newCharge()]);
@@ -66,10 +101,45 @@ export function ArchitecturalProjectFormPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const total = useMemo(() => charges.reduce((sum, charge) => sum + Number(charge.amount || 0), 0), [charges]);
+  const subtotal = useMemo(() => charges.reduce((sum, charge) => sum + Number(charge.amount || 0), 0), [charges]);
+  const tax = invoiceRequested ? subtotal * 0.16 : 0;
+  const total = subtotal + tax;
   const paid = useMemo(() => charges
     .filter((charge) => charge.status === 'pagado')
-    .reduce((sum, charge) => sum + Number(charge.amount || 0), 0), [charges]);
+    .reduce((sum, charge) => sum + Number(charge.amount || 0) * (invoiceRequested ? 1.16 : 1), 0), [charges, invoiceRequested]);
+
+  const fiscalFieldsComplete = Boolean(
+    businessName.trim()
+    && /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/i.test(taxId.trim())
+    && taxAddress.trim()
+    && /^\d{5}$/.test(taxPostalCode.trim())
+    && taxRegime.trim()
+    && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(billingEmail.trim())
+    && cfdiUse.trim(),
+  );
+
+  const documentProject: ArchitecturalProject = {
+    id: id || 'BORRADOR',
+    clientName,
+    clientPhone,
+    projectName,
+    constructionType,
+    projectType,
+    location,
+    invoiceRequested,
+    businessName,
+    taxId,
+    taxAddress,
+    taxPostalCode,
+    taxRegime,
+    billingEmail,
+    cfdiUse,
+    status,
+    notes,
+    charges,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 
   const updateCharge = (chargeId: string, patch: Partial<ArchitecturalCharge>) =>
     setCharges((items) => items.map((item) => item.id === chargeId ? { ...item, ...patch } : item));
@@ -107,13 +177,51 @@ export function ArchitecturalProjectFormPage() {
     });
   };
 
+  const readFiscalCertificate = async (file: File | undefined) => {
+    if (!file) return;
+    setExtractingCertificate(true);
+    setCertificateProgress('Leyendo constancia...');
+    setCertificateMessage('');
+    setDetectedTaxRegimes([]);
+    setSaveError('');
+    try {
+      const fiscalData = await extractFiscalCertificate(file, setCertificateProgress);
+      setInvoiceRequested(true);
+      setBusinessName(fiscalData.businessName);
+      setTaxId(fiscalData.taxId);
+      setTaxPostalCode(fiscalData.taxPostalCode);
+      const detectedRegimes = fiscalData.taxRegimes.map((regime) => {
+        const matchingRegime = taxRegimeOptions.find((option) =>
+          normalizeFiscalLabel(option) === normalizeFiscalLabel(regime));
+        return matchingRegime || regime;
+      }).filter((regime, index, items) => items.indexOf(regime) === index);
+      setDetectedTaxRegimes(detectedRegimes);
+      setTaxRegime(detectedRegimes.length === 1 ? detectedRegimes[0] : '');
+      setTaxAddress(fiscalData.taxAddress);
+      setCertificateMessage(detectedRegimes.length > 1
+        ? `Se encontraron ${detectedRegimes.length} regímenes en "${file.name}". Selecciona cuál se utilizará.`
+        : `Datos extraídos de "${file.name}". Revisa la información antes de guardar.`);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'No se pudo leer la constancia fiscal.');
+    } finally {
+      setExtractingCertificate(false);
+      setCertificateProgress('');
+    }
+  };
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (invoiceRequested && !fiscalFieldsComplete) {
+      setSaveError('Completa todos los datos fiscales obligatorios antes de guardar o generar una factura.');
+      return;
+    }
     setSaving(true);
     setSaveError('');
     try {
       await architecturalProjectsService.save({
-        clientName, clientPhone, projectName, constructionType, projectType, location, status, notes,
+        clientName, clientPhone, projectName, constructionType, projectType, location,
+        invoiceRequested, businessName, taxId, taxAddress, taxPostalCode, taxRegime,
+        billingEmail, cfdiUse, status, notes,
         charges: charges.filter((charge) => charge.concept.trim()),
       }, id);
       navigate('/arquitectura');
@@ -164,6 +272,68 @@ export function ArchitecturalProjectFormPage() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-6 flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-violet-50 p-2 text-violet-600"><Landmark className="h-5 w-5" /></div>
+            <div><h2 className="text-lg font-bold text-slate-800">¿Este proyecto requiere factura?</h2><p className="text-xs text-slate-500">El IVA se agregará únicamente cuando se solicite factura.</p></div>
+          </div>
+          <div className="flex rounded-xl border border-slate-200 bg-slate-100 p-1">
+            <button type="button" onClick={() => setInvoiceRequested(false)} className={`rounded-lg px-5 py-2 text-sm font-bold transition ${!invoiceRequested ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>No</button>
+            <button type="button" onClick={() => setInvoiceRequested(true)} className={`rounded-lg px-5 py-2 text-sm font-bold transition ${invoiceRequested ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-500'}`}>Sí</button>
+          </div>
+        </div>
+        {invoiceRequested ? (
+          <>
+            <div className="mb-5 rounded-2xl border border-dashed border-violet-200 bg-violet-50/50 p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="flex items-center gap-2 text-sm font-bold text-violet-900"><Upload className="h-4 w-4" /> Autollenar desde constancia fiscal</p>
+                  <p className="mt-1 text-xs text-violet-700/70">Acepta PDF digital o escaneado, PNG y JPG. El archivo se procesa en este navegador y no se almacena en Supabase.</p>
+                </div>
+                <label className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-700 ${extractingCertificate ? 'pointer-events-none opacity-60' : ''}`}>
+                  {extractingCertificate ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                  {extractingCertificate ? certificateProgress || 'Leyendo constancia...' : 'Subir constancia'}
+                  <input type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" className="hidden" onChange={(event) => { void readFiscalCertificate(event.target.files?.[0]); event.target.value = ''; }} />
+                </label>
+              </div>
+              {certificateMessage && <p className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-800"><FileCheck2 className="mt-0.5 h-4 w-4 shrink-0" /> {certificateMessage}</p>}
+              {detectedTaxRegimes.length > 1 && (
+                <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
+                  <p className="text-sm font-bold text-amber-900">¿Qué régimen fiscal se utilizará para esta factura?</p>
+                  <p className="mt-1 text-xs text-amber-700">La constancia contiene más de un régimen. Debes elegir uno para continuar.</p>
+                  <select
+                    value={taxRegime}
+                    onChange={(event) => setTaxRegime(event.target.value)}
+                    className="mt-3 h-11 w-full rounded-xl border border-amber-300 bg-white px-4 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                  >
+                    <option value="">Selecciona un régimen fiscal</option>
+                    {detectedTaxRegimes.map((regime) => <option key={regime} value={regime}>{regime}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+            <div className="grid gap-5 md:grid-cols-2">
+              <Field label="Razón social o nombre fiscal" required value={businessName} onChange={setBusinessName} placeholder={clientName || 'Nombre del receptor'} />
+              <Field label="RFC" required value={taxId} onChange={(value) => setTaxId(value.toUpperCase())} placeholder="Ej. XAXX010101000" />
+              <Field label="Código postal fiscal" required value={taxPostalCode} onChange={(value) => setTaxPostalCode(value.replace(/\D/g, '').slice(0, 5))} placeholder="Ej. 23000" />
+              <SelectField label="Régimen fiscal *" value={taxRegime} onChange={setTaxRegime} options={['', ...withCurrentValue(taxRegimeOptions, taxRegime)]} />
+              <Field label="Domicilio fiscal" required value={taxAddress} onChange={setTaxAddress} placeholder="Calle, número y colonia" />
+              <Field label="Correo de facturación" required type="email" value={billingEmail} onChange={setBillingEmail} placeholder="facturacion@cliente.com" />
+              <SelectField label="Uso de CFDI *" value={cfdiUse} onChange={setCfdiUse} options={['', ...withCurrentValue(cfdiUseOptions, cfdiUse)]} />
+            </div>
+            <div className="mt-5 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs leading-relaxed text-amber-800">Todos los campos son obligatorios. La factura generada es comercial y no está timbrada ante el SAT.</p>
+              <button type="button" disabled={!fiscalFieldsComplete || !charges.some((charge) => charge.concept.trim())} onClick={() => generateArchitecturalInvoice(documentProject, charges.filter((charge) => charge.concept.trim()))} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-40">
+                <FileText className="h-4 w-4" /> Factura del proyecto
+              </button>
+            </div>
+          </>
+        ) : (
+          <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">No se solicitará información fiscal ni se agregará IVA a los importes.</p>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600"><DollarSign className="h-5 w-5" /></div>
@@ -179,7 +349,7 @@ export function ArchitecturalProjectFormPage() {
               <div className="grid gap-3 md:grid-cols-[1.2fr_1.5fr_.7fr_.7fr_auto] md:items-end">
                 <SelectField label={`Concepto ${index + 1} *`} value={charge.concept} onChange={(value) => updateCharge(charge.id, { concept: value })} options={['', ...withCurrentValue(chargeConceptOptions, charge.concept)]} />
                 <Field label="Descripción" value={charge.description} onChange={(value) => updateCharge(charge.id, { description: value })} placeholder="Qué incluye" />
-                <Field label="Importe" type="number" min="0" step="0.01" value={String(charge.amount || '')} onChange={(value) => updateCharge(charge.id, { amount: Number(value) })} placeholder="0.00" />
+                <Field label={invoiceRequested ? 'Importe antes de IVA' : 'Importe'} type="number" min="0" step="0.01" value={String(charge.amount || '')} onChange={(value) => updateCharge(charge.id, { amount: Number(value) })} placeholder="0.00" />
                 <SelectField label="Estado" value={charge.status} onChange={(value) => updateCharge(charge.id, { status: value as ArchitecturalCharge['status'], paymentDate: value === 'pagado' ? charge.paymentDate || new Date().toISOString().slice(0, 10) : undefined })} options={['pendiente', 'pagado']} />
                 <button type="button" title="Eliminar concepto" onClick={() => setCharges((items) => items.filter((item) => item.id !== charge.id))} className="rounded-xl border border-red-100 bg-white p-3 text-red-500 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
               </div>
@@ -225,13 +395,27 @@ export function ArchitecturalProjectFormPage() {
                   </div>
                 )}
               </div>
+              <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4">
+                {charge.status === 'pagado' && (
+                  <button type="button" onClick={() => generateArchitecturalReceipt(documentProject, charge)} className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100">
+                    <ReceiptText className="h-4 w-4" /> Generar recibo
+                  </button>
+                )}
+                {invoiceRequested && (
+                  <button type="button" onClick={() => generateArchitecturalInvoice(documentProject, [charge])} disabled={!charge.concept.trim() || !fiscalFieldsComplete} className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2 text-xs font-bold text-violet-700 hover:bg-violet-100 disabled:opacity-40">
+                    <FileText className="h-4 w-4" /> Generar factura
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
         {fileError && <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{fileError}</p>}
         {saveError && <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{saveError}</p>}
-        <div className="mt-6 grid gap-3 border-t border-slate-100 pt-5 sm:grid-cols-3">
-          <Summary label="Total cotizado" value={total} />
+        <div className={`mt-6 grid gap-3 border-t border-slate-100 pt-5 ${invoiceRequested ? 'sm:grid-cols-5' : 'sm:grid-cols-3'}`}>
+          {invoiceRequested && <Summary label="Subtotal (ganancia)" value={subtotal} />}
+          {invoiceRequested && <Summary label="IVA 16%" value={tax} color="text-violet-600" />}
+          <Summary label="Total a cobrar" value={total} />
           <Summary label="Total cobrado" value={paid} color="text-emerald-600" />
           <Summary label="Saldo pendiente" value={total - paid} color="text-amber-600" />
         </div>
@@ -307,5 +491,18 @@ function isPreviewable(attachment: ArchitecturalAttachment) {
 }
 
 function withCurrentValue(options: string[], current: string) {
-  return current && !options.includes(current) ? [current, ...options] : options;
+  const equivalent = options.some((option) => normalizeFiscalLabel(option) === normalizeFiscalLabel(current));
+  return current && !equivalent ? [current, ...options] : options;
+}
+
+function normalizeFiscalLabel(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('es-MX')
+    .replace(/^\s*\d{3}\s*-\s*/, '')
+    .replace(/^\s*regimen(?:\s+de)?\s+/, '')
+    .replace(/^\s*de(?:\s+(las|los))?\s+/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }

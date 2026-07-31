@@ -29,6 +29,14 @@ export interface ArchitecturalProject {
   constructionType: string;
   projectType: string;
   location: string;
+  invoiceRequested: boolean;
+  businessName: string;
+  taxId: string;
+  taxAddress: string;
+  taxPostalCode: string;
+  taxRegime: string;
+  billingEmail: string;
+  cfdiUse: string;
   status: ArchitecturalProjectStatus;
   notes: string;
   charges: ArchitecturalCharge[];

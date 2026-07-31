@@ -37,8 +37,9 @@ export function ArchitecturalProjectListPage() {
     [project.clientName, project.projectName, project.constructionType, project.projectType]
       .some((value) => value.toLowerCase().includes(search.toLowerCase()))), [projects, search]);
   const totals = useMemo(() => projects.reduce((acc, project) => {
-    const total = project.charges.reduce((sum, charge) => sum + Number(charge.amount), 0);
-    const paid = project.charges.filter((charge) => charge.status === 'pagado').reduce((sum, charge) => sum + Number(charge.amount), 0);
+    const multiplier = project.invoiceRequested ? 1.16 : 1;
+    const total = project.charges.reduce((sum, charge) => sum + Number(charge.amount) * multiplier, 0);
+    const paid = project.charges.filter((charge) => charge.status === 'pagado').reduce((sum, charge) => sum + Number(charge.amount) * multiplier, 0);
     return { quoted: acc.quoted + total, paid: acc.paid + paid };
   }, { quoted: 0, paid: 0 }), [projects]);
 
@@ -79,8 +80,9 @@ export function ArchitecturalProjectListPage() {
       ) : (
         <div className="grid gap-5 lg:grid-cols-2">
           {filtered.map((project) => {
-            const total = project.charges.reduce((sum, charge) => sum + Number(charge.amount), 0);
-            const paid = project.charges.filter((charge) => charge.status === 'pagado').reduce((sum, charge) => sum + Number(charge.amount), 0);
+            const multiplier = project.invoiceRequested ? 1.16 : 1;
+            const total = project.charges.reduce((sum, charge) => sum + Number(charge.amount) * multiplier, 0);
+            const paid = project.charges.filter((charge) => charge.status === 'pagado').reduce((sum, charge) => sum + Number(charge.amount) * multiplier, 0);
             const percentage = total ? Math.round((paid / total) * 100) : 0;
             return (
               <article key={project.id} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
@@ -92,6 +94,7 @@ export function ArchitecturalProjectListPage() {
                   <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-slate-600">{project.constructionType}</span>
                   <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-slate-600">{project.projectType}</span>
                   <span className="rounded-lg bg-blue-50 px-3 py-1.5 font-medium text-blue-700">{project.charges.length} conceptos</span>
+                  {project.invoiceRequested && <span className="rounded-lg bg-violet-50 px-3 py-1.5 font-medium text-violet-700">Factura + IVA</span>}
                 </div>
                 <div className="mt-5 grid grid-cols-2 gap-3">
                   <div><p className="text-xs text-slate-400">Total del proyecto</p><p className="font-bold text-slate-900">{formatCurrency(total)}</p></div>
