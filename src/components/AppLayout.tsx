@@ -64,6 +64,7 @@ export function AppLayout({ children }: LayoutProps) {
         { to: '/arquitectura/nuevo', label: 'Nuevo proyecto', icon: PlusCircle },
       ]
     },
+    { to: '/catalogos', label: 'Catálogos', icon: Settings, roles: ['admin'] },
     // {
     //   label: 'Fumigación',
     //   icon: Sprout,

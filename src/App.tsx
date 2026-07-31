@@ -14,6 +14,7 @@ import { ArchitecturalProjectFormPage } from './pages/ArchitecturalProjectFormPa
 import { AuthProvider } from './auth/AuthContext';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
+import { CatalogsPage } from './pages/CatalogsPage';
 
 function AppShell() {
   return <AppLayout><Outlet /></AppLayout>;
@@ -32,6 +33,7 @@ export default function App() {
                 <Route path="/listado" element={<ProjectListPage />} />
                 <Route path="/registro" element={<ProjectRegistrationPage />} />
                 <Route path="/editar/:id" element={<ProjectEditPage />} />
+                <Route path="/catalogos" element={<CatalogsPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['admin', 'arquitectura']} />}>
                 <Route path="/arquitectura" element={<ArchitecturalProjectListPage />} />

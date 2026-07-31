@@ -4,6 +4,7 @@ import { ArrowLeft, Building2, DollarSign, Download, Eye, File, Paperclip, Plus,
 import { architecturalProjectsService } from '../services/architecturalProjects';
 import { ArchitecturalAttachment, ArchitecturalCharge, ArchitecturalProjectStatus } from '../types/architecture';
 import { formatCurrency } from '../lib/utils';
+import { catalogsService } from '../services/catalogs';
 
 const newCharge = (): ArchitecturalCharge => ({
   id: crypto.randomUUID(), concept: '', description: '', amount: 0, status: 'pendiente', attachments: [],
@@ -28,6 +29,23 @@ export function ArchitecturalProjectFormPage() {
   const [loading, setLoading] = useState(Boolean(id));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [constructionOptions, setConstructionOptions] = useState(['Casa habitación', 'Departamento', 'Edificio', 'Local comercial', 'Oficina', 'Remodelación', 'Ampliación', 'Otro']);
+  const [projectOptions, setProjectOptions] = useState(['Proyecto nuevo', 'Remodelación', 'Ampliación', 'Regularización', 'Diseño de interiores', 'Levantamiento', 'Otro']);
+  const [chargeConceptOptions, setChargeConceptOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    void Promise.all([
+      catalogsService.getActiveValues('tipos_construccion'),
+      catalogsService.getActiveValues('tipos_proyecto'),
+      catalogsService.getActiveValues('conceptos_cobro'),
+    ]).then(([constructionValues, projectValues, conceptValues]) => {
+      setConstructionOptions(constructionValues.map((item) => item.value));
+      setProjectOptions(projectValues.map((item) => item.value));
+      setChargeConceptOptions(conceptValues.map((item) => item.value));
+    }).catch(() => {
+      setSaveError('No se pudieron cargar los catálogos. Se muestran las opciones predeterminadas.');
+    });
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -134,8 +152,8 @@ export function ArchitecturalProjectFormPage() {
           <Field label="Nombre del cliente" required value={clientName} onChange={setClientName} placeholder="Ej. María López" />
           <Field label="Teléfono" value={clientPhone} onChange={setClientPhone} placeholder="Ej. 612 123 4567" />
           <Field label="Nombre de la casa, departamento u obra" required value={projectName} onChange={setProjectName} placeholder="Ej. Casa Mirador" />
-          <SelectField label="Tipo de construcción" value={constructionType} onChange={setConstructionType} options={['Casa habitación', 'Departamento', 'Edificio', 'Local comercial', 'Oficina', 'Remodelación', 'Ampliación', 'Otro']} />
-          <SelectField label="Tipo de proyecto" value={projectType} onChange={setProjectType} options={['Proyecto nuevo', 'Remodelación', 'Ampliación', 'Regularización', 'Diseño de interiores', 'Levantamiento', 'Otro']} />
+          <SelectField label="Tipo de construcción" value={constructionType} onChange={setConstructionType} options={withCurrentValue(constructionOptions, constructionType)} />
+          <SelectField label="Tipo de proyecto" value={projectType} onChange={setProjectType} options={withCurrentValue(projectOptions, projectType)} />
           <Field label="Ubicación" value={location} onChange={setLocation} placeholder="Dirección o ciudad" />
           <SelectField label="Estado" value={status} onChange={(value) => setStatus(value as ArchitecturalProjectStatus)} options={['cotizacion', 'activo', 'pausado', 'terminado']} />
         </div>
@@ -159,7 +177,7 @@ export function ArchitecturalProjectFormPage() {
           {charges.map((charge, index) => (
             <div key={charge.id} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
               <div className="grid gap-3 md:grid-cols-[1.2fr_1.5fr_.7fr_.7fr_auto] md:items-end">
-                <Field label={`Concepto ${index + 1}`} required value={charge.concept} onChange={(value) => updateCharge(charge.id, { concept: value })} placeholder="Ej. Planos eléctricos" />
+                <SelectField label={`Concepto ${index + 1} *`} value={charge.concept} onChange={(value) => updateCharge(charge.id, { concept: value })} options={['', ...withCurrentValue(chargeConceptOptions, charge.concept)]} />
                 <Field label="Descripción" value={charge.description} onChange={(value) => updateCharge(charge.id, { description: value })} placeholder="Qué incluye" />
                 <Field label="Importe" type="number" min="0" step="0.01" value={String(charge.amount || '')} onChange={(value) => updateCharge(charge.id, { amount: Number(value) })} placeholder="0.00" />
                 <SelectField label="Estado" value={charge.status} onChange={(value) => updateCharge(charge.id, { status: value as ArchitecturalCharge['status'], paymentDate: value === 'pagado' ? charge.paymentDate || new Date().toISOString().slice(0, 10) : undefined })} options={['pendiente', 'pagado']} />
@@ -286,4 +304,8 @@ function isPreviewable(attachment: ArchitecturalAttachment) {
   return isImageAttachment(attachment)
     || attachmentExtension(attachment) === 'pdf'
     || attachment.type === 'application/pdf';
+}
+
+function withCurrentValue(options: string[], current: string) {
+  return current && !options.includes(current) ? [current, ...options] : options;
 }
