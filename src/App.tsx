@@ -15,6 +15,9 @@ import { AuthProvider } from './auth/AuthContext';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 import { CatalogsPage } from './pages/CatalogsPage';
+import { ClientPortalPage } from './pages/ClientPortalPage';
+import { AlertProvider } from './components/AlertProvider';
+import { ArchitectureDashboardPage } from './pages/ArchitectureDashboardPage';
 
 function AppShell() {
   return <AppLayout><Outlet /></AppLayout>;
@@ -23,7 +26,7 @@ function AppShell() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
+      <AlertProvider><AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<ProtectedRoute />}>
@@ -35,15 +38,19 @@ export default function App() {
                 <Route path="/editar/:id" element={<ProjectEditPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['admin', 'arquitectura']} />}>
+                <Route path="/arquitectura/resumen" element={<ArchitectureDashboardPage />} />
                 <Route path="/arquitectura" element={<ArchitecturalProjectListPage />} />
                 <Route path="/arquitectura/nuevo" element={<ArchitecturalProjectFormPage />} />
                 <Route path="/arquitectura/editar/:id" element={<ArchitecturalProjectFormPage />} />
                 <Route path="/catalogos" element={<CatalogsPage />} />
               </Route>
+              <Route element={<ProtectedRoute allowedRoles={['cliente']} />}>
+                <Route path="/cliente" element={<ClientPortalPage />} />
+              </Route>
             </Route>
           </Route>
         </Routes>
-      </AuthProvider>
+      </AuthProvider></AlertProvider>
     </BrowserRouter>
   );
 }

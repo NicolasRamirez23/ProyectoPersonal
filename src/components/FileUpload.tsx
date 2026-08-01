@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { Upload, X, FileText, Image as ImageIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from './Button';
+import { useAlerts } from './AlertProvider';
 
 interface FileUploadProps {
   label?: string;
@@ -11,13 +12,14 @@ interface FileUploadProps {
 }
 
 export function FileUpload({ label, onChange, maxFiles = 5, accept = 'image/*' }: FileUploadProps) {
+  const { notify } = useAlerts();
   const [previews, setPreviews] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (previews.length + files.length > maxFiles) {
-      alert(`Máximo ${maxFiles} archivos permitidos`);
+      notify('warning', 'Límite de archivos', `Puedes adjuntar un máximo de ${maxFiles} archivos.`);
       return;
     }
 

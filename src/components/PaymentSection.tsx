@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useAlerts } from './AlertProvider';
 import { 
   CheckCircle2, 
   Clock, 
@@ -35,6 +36,7 @@ interface PaymentSectionProps {
 }
 
 export function PaymentSection({ proyecto }: PaymentSectionProps) {
+  const { notify } = useAlerts();
   const [plazos, setPlazos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [plazoSeleccionado, setPlazoSeleccionado] = useState<any | null>(null);
@@ -143,7 +145,7 @@ export function PaymentSection({ proyecto }: PaymentSectionProps) {
       await cargarPlazos();
     } catch (error: any) {
       console.error(error);
-      alert(error.message || "Error al procesar el abono.");
+      notify('error', 'No se pudo procesar el abono', error.message || 'Inténtalo nuevamente.');
     }
   };
 
@@ -466,6 +468,7 @@ function InstallmentRow({
   setSuccessMessage: React.Dispatch<React.SetStateAction<string | null>>
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const { notify } = useAlerts();
 
   const restante = Number(plazo.monto_total) - Number(plazo.monto_pagado || 0);
   const estatusNormalizado = plazo.estatus?.toUpperCase();
@@ -490,7 +493,7 @@ function InstallmentRow({
           setSuccessMessage("El abono ha sido cancelado exitosamente y los saldos globales fueron recalculados.");
         } catch (err: any) {
           console.error("Error al cancelar abono:", err);
-          alert(err.message || "Error al intentar comunicar la cancelación con la base de datos.");
+          notify('error', 'No se pudo cancelar el abono', err.message || 'No fue posible actualizar la base de datos.');
         }
       }
     });

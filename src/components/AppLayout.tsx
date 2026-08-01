@@ -60,11 +60,13 @@ export function AppLayout({ children }: LayoutProps) {
       roles: ['admin', 'arquitectura'],
       isFolder: true,
       children: [
+        { to: '/arquitectura/resumen', label: 'Resumen', icon: LayoutDashboard },
         { to: '/arquitectura', label: 'Proyectos', icon: Building2 },
         { to: '/arquitectura/nuevo', label: 'Nuevo proyecto', icon: PlusCircle },
       ]
     },
     { to: '/catalogos', label: 'Catálogos', icon: Settings, roles: ['admin', 'arquitectura'] },
+    { to: '/cliente', label: 'Mis proyectos', icon: Building2, roles: ['cliente'] },
     // {
     //   label: 'Fumigación',
     //   icon: Sprout,
@@ -218,7 +220,7 @@ export function AppLayout({ children }: LayoutProps) {
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold text-slate-800 leading-none">{profile?.nombre || 'Usuario'}</p>
-              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">{profile?.rol === 'admin' ? 'Administrador' : 'Arquitectura'}</p>
+              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">{profile?.rol === 'admin' ? 'Administrador' : profile?.rol === 'cliente' ? 'Cliente' : 'Arquitectura'}</p>
             </div>
             <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-bold shadow-sm">
               {(profile?.nombre || 'U').charAt(0).toUpperCase()}

@@ -166,26 +166,28 @@ revoke all on public.catalogo_valores from anon;
 
 drop policy if exists "Usuarios leen catalogos" on public.catalogos;
 drop policy if exists "Admin gestiona catalogos" on public.catalogos;
+drop policy if exists "Roles arquitectura gestionan catalogos" on public.catalogos;
 drop policy if exists "Usuarios leen valores activos" on public.catalogo_valores;
 drop policy if exists "Admin gestiona valores" on public.catalogo_valores;
+drop policy if exists "Roles arquitectura gestionan valores" on public.catalogo_valores;
 
 create policy "Usuarios leen catalogos" on public.catalogos
 for select to authenticated
 using (public.puede_ver_arquitectura());
 
-create policy "Admin gestiona catalogos" on public.catalogos
+create policy "Roles arquitectura gestionan catalogos" on public.catalogos
 for all to authenticated
-using (public.es_admin())
-with check (public.es_admin());
+using (public.puede_ver_arquitectura())
+with check (public.puede_ver_arquitectura());
 
 create policy "Usuarios leen valores activos" on public.catalogo_valores
 for select to authenticated
 using (activo or public.es_admin());
 
-create policy "Admin gestiona valores" on public.catalogo_valores
+create policy "Roles arquitectura gestionan valores" on public.catalogo_valores
 for all to authenticated
-using (public.es_admin())
-with check (public.es_admin());
+using (public.puede_ver_arquitectura())
+with check (public.puede_ver_arquitectura());
 
 commit;
 

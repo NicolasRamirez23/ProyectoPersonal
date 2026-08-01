@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { ArchitecturalCharge, ArchitecturalProject } from '../types/architecture';
+import { ArchitecturalCharge, ArchitecturalPayment, ArchitecturalProject } from '../types/architecture';
 
 const money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
@@ -61,9 +61,9 @@ function chargeDetails(charge: ArchitecturalCharge) {
   return [charge.description || '', ...activities].filter(Boolean).join('\n') || 'Servicio arquitectónico';
 }
 
-export function buildArchitecturalReceipt(project: ArchitecturalProject, charge: ArchitecturalCharge) {
+export function buildArchitecturalReceipt(project: ArchitecturalProject, charge: ArchitecturalCharge, payment: ArchitecturalPayment) {
   const doc = new jsPDF();
-  const folio = `REC-${charge.id.slice(0, 8).toUpperCase()}`;
+  const folio = `REC-${payment.id.slice(0, 8).toUpperCase()}`;
   header(doc, 'RECIBO DE PAGO', folio);
 
   doc.setFontSize(9);
@@ -85,16 +85,16 @@ export function buildArchitecturalReceipt(project: ArchitecturalProject, charge:
   doc.setFont('helvetica', 'bold');
   doc.text('TOTAL RECIBIDO', 163, 59, { align: 'center' });
   doc.setFontSize(17);
-  const receivedAmount = charge.amount * (project.invoiceRequested ? 1.16 : 1);
+  const receivedAmount = Number(payment.amount);
   doc.text(money.format(receivedAmount), 163, 70, { align: 'center' });
 
   autoTable(doc, {
     startY: 88,
-    head: [['Concepto', 'Descripcion', 'Fecha de pago', 'Importe']],
+    head: [['Concepto', 'Descripción', 'Fecha', 'Importe']],
     body: [[
       charge.concept,
       chargeDetails(charge),
-      charge.paymentDate ? new Date(`${charge.paymentDate}T12:00:00`).toLocaleDateString('es-MX') : new Date().toLocaleDateString('es-MX'),
+      payment.date ? new Date(`${payment.date}T12:00:00`).toLocaleDateString('es-MX') : new Date().toLocaleDateString('es-MX'),
       money.format(receivedAmount),
     ]],
     theme: 'grid',
@@ -106,7 +106,12 @@ export function buildArchitecturalReceipt(project: ArchitecturalProject, charge:
   const finalY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || 115;
   doc.setFontSize(9);
   doc.setTextColor(71, 85, 105);
-  doc.text('Este recibo confirma el pago del concepto indicado.', 16, finalY + 14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DETALLES DEL PAGO', 16, finalY + 14);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Método: ${payment.method}`, 16, finalY + 22);
+  doc.text(`Referencia: ${payment.reference || 'No proporcionada'}`, 16, finalY + 29);
+  if (payment.notes) doc.text(`Notas: ${payment.notes}`, 16, finalY + 36);
   doc.line(128, finalY + 42, 190, finalY + 42);
   doc.setFontSize(8);
   doc.text('Firma de administracion', 159, finalY + 48, { align: 'center' });
@@ -114,8 +119,9 @@ export function buildArchitecturalReceipt(project: ArchitecturalProject, charge:
   return doc;
 }
 
-export function generateArchitecturalReceipt(project: ArchitecturalProject, charge: ArchitecturalCharge) {
-  buildArchitecturalReceipt(project, charge).save(`REC-${charge.id.slice(0, 8).toUpperCase()}_${fileName(project.projectName)}.pdf`);
+export function generateArchitecturalReceipt(project: ArchitecturalProject, charge: ArchitecturalCharge, payment: ArchitecturalPayment) {
+  buildArchitecturalReceipt(project, charge, payment)
+    .save(`REC-${payment.id.slice(0, 8).toUpperCase()}_${fileName(project.projectName)}.pdf`);
 }
 
 export function buildArchitecturalQuotation(project: ArchitecturalProject, charges: ArchitecturalCharge[]) {

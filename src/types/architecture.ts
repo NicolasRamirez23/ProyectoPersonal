@@ -1,5 +1,5 @@
 export type ArchitecturalProjectStatus = 'cotizacion' | 'activo' | 'pausado' | 'terminado';
-export type ArchitecturalChargeStatus = 'pendiente' | 'pagado';
+export type ArchitecturalChargeStatus = 'pendiente' | 'parcial' | 'pagado';
 
 export interface ArchitecturalAttachment {
   id: string;
@@ -18,6 +18,47 @@ export interface ArchitecturalSubconcept {
   amount?: number;
 }
 
+export interface ArchitecturalPayment {
+  id: string;
+  amount: number;
+  date: string;
+  method: 'transferencia' | 'efectivo' | 'tarjeta' | 'cheque' | 'otro';
+  reference: string;
+  notes: string;
+  proof?: ArchitecturalAttachment;
+}
+
+export interface ArchitecturalTask {
+  id: string;
+  title: string;
+  dueDate: string;
+  completed: boolean;
+}
+
+export interface ArchitecturalStage {
+  id: string;
+  name: string;
+  responsible: string;
+  startDate: string;
+  dueDate: string;
+  status: 'pendiente' | 'en_proceso' | 'completada';
+  notes: string;
+  tasks: ArchitecturalTask[];
+}
+
+export interface ArchitecturalExpense {
+  id: string;
+  category: 'honorarios' | 'impresiones' | 'traslados' | 'permisos' | 'materiales' | 'administrativo' | 'otro';
+  concept: string;
+  supplier: string;
+  amount: number;
+  date: string;
+  status: 'pendiente' | 'pagado';
+  paymentMethod: 'transferencia' | 'efectivo' | 'tarjeta' | 'cheque' | 'otro';
+  notes: string;
+  proof?: ArchitecturalAttachment;
+}
+
 export interface ArchitecturalCharge {
   id: string;
   concept: string;
@@ -27,12 +68,17 @@ export interface ArchitecturalCharge {
   paymentDate?: string;
   attachments: ArchitecturalAttachment[];
   subconcepts: ArchitecturalSubconcept[];
+  payments: ArchitecturalPayment[];
 }
 
 export interface ArchitecturalProject {
   id: string;
   clientName: string;
   clientPhone: string;
+  clientUserId: string;
+  quotationStatus: 'borrador' | 'enviada' | 'aprobada' | 'rechazada' | 'vencida';
+  quotationRespondedAt?: string;
+  quotationComment: string;
   projectName: string;
   constructionType: string;
   projectType: string;
@@ -47,6 +93,8 @@ export interface ArchitecturalProject {
   cfdiUse: string;
   status: ArchitecturalProjectStatus;
   notes: string;
+  stages: ArchitecturalStage[];
+  expenses: ArchitecturalExpense[];
   charges: ArchitecturalCharge[];
   createdAt: string;
   updatedAt: string;

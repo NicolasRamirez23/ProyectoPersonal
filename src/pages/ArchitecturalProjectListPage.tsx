@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Building2, CircleDollarSign, Edit3, HardHat, Plus, Search, Trash2, WalletCards } from 'lucide-react';
 import { architecturalProjectsService } from '../services/architecturalProjects';
 import { formatCurrency } from '../lib/utils';
+import { useAlerts } from '../components/AlertProvider';
 
 const statusStyles: Record<string, string> = {
   cotizacion: 'bg-violet-50 text-violet-700',
@@ -13,6 +14,7 @@ const statusStyles: Record<string, string> = {
 
 export function ArchitecturalProjectListPage() {
   const navigate = useNavigate();
+  const { confirm: confirmAlert, notify } = useAlerts();
   const [search, setSearch] = useState('');
   const [projects, setProjects] = useState<Awaited<ReturnType<typeof architecturalProjectsService.getAll>>>([]);
   const [loading, setLoading] = useState(true);
@@ -39,14 +41,18 @@ export function ArchitecturalProjectListPage() {
   const totals = useMemo(() => projects.reduce((acc, project) => {
     const multiplier = project.invoiceRequested ? 1.16 : 1;
     const total = project.charges.reduce((sum, charge) => sum + Number(charge.amount) * multiplier, 0);
-    const paid = project.charges.filter((charge) => charge.status === 'pagado').reduce((sum, charge) => sum + Number(charge.amount) * multiplier, 0);
+    const paid = project.charges.reduce((sum, charge) => sum
+      + (charge.payments?.length
+        ? charge.payments.reduce((paymentSum, payment) => paymentSum + Number(payment.amount), 0)
+        : charge.status === 'pagado' ? Number(charge.amount) * multiplier : 0), 0);
     return { quoted: acc.quoted + total, paid: acc.paid + paid };
   }, { quoted: 0, paid: 0 }), [projects]);
 
   const remove = async (id: string, name: string) => {
-    if (!window.confirm(`¿Eliminar el proyecto "${name}"? Esta acción no se puede deshacer.`)) return;
+    if (!await confirmAlert('Eliminar proyecto', `Se eliminará permanentemente "${name}", incluyendo conceptos, pagos y archivos.`, { confirmText: 'Eliminar proyecto', danger: true })) return;
     try {
       await architecturalProjectsService.remove(id);
+      notify('success', 'Proyecto eliminado', `"${name}" se eliminó correctamente.`);
       await loadProjects();
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : 'No se pudo eliminar el proyecto.');
@@ -82,8 +88,19 @@ export function ArchitecturalProjectListPage() {
           {filtered.map((project) => {
             const multiplier = project.invoiceRequested ? 1.16 : 1;
             const total = project.charges.reduce((sum, charge) => sum + Number(charge.amount) * multiplier, 0);
-            const paid = project.charges.filter((charge) => charge.status === 'pagado').reduce((sum, charge) => sum + Number(charge.amount) * multiplier, 0);
+            const paid = project.charges.reduce((sum, charge) => sum
+              + (charge.payments?.length
+                ? charge.payments.reduce((paymentSum, payment) => paymentSum + Number(payment.amount), 0)
+                : charge.status === 'pagado' ? Number(charge.amount) * multiplier : 0), 0);
             const percentage = total ? Math.round((paid / total) * 100) : 0;
+            const projectTasks = project.stages.flatMap((stage) => stage.tasks);
+            const projectProgress = projectTasks.length
+              ? Math.round(projectTasks.filter((task) => task.completed).length / projectTasks.length * 100)
+              : project.stages.length
+                ? Math.round(project.stages.filter((stage) => stage.status === 'completada').length / project.stages.length * 100)
+                : 0;
+            const expenses = project.expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
+            const paidExpenses = project.expenses.filter((expense) => expense.status === 'pagado').reduce((sum, expense) => sum + Number(expense.amount), 0);
             return (
               <article key={project.id} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
                 <div className="flex items-start justify-between gap-4">
@@ -94,11 +111,20 @@ export function ArchitecturalProjectListPage() {
                   <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-slate-600">{project.constructionType}</span>
                   <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-slate-600">{project.projectType}</span>
                   <span className="rounded-lg bg-blue-50 px-3 py-1.5 font-medium text-blue-700">{project.charges.length} conceptos</span>
+                  <span className="rounded-lg bg-cyan-50 px-3 py-1.5 font-medium text-cyan-700">{project.stages.length} etapas</span>
                   {project.invoiceRequested && <span className="rounded-lg bg-violet-50 px-3 py-1.5 font-medium text-violet-700">Factura + IVA</span>}
                 </div>
+                {project.stages.length > 0 && <>
+                  <div className="mt-4 flex justify-between text-[11px] font-medium text-slate-500"><span>Avance del proyecto</span><span>{projectProgress}%</span></div>
+                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-cyan-500" style={{ width: `${projectProgress}%` }} /></div>
+                </>}
                 <div className="mt-5 grid grid-cols-2 gap-3">
                   <div><p className="text-xs text-slate-400">Total del proyecto</p><p className="font-bold text-slate-900">{formatCurrency(total)}</p></div>
                   <div className="text-right"><p className="text-xs text-slate-400">Pendiente</p><p className="font-bold text-amber-600">{formatCurrency(total - paid)}</p></div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3">
+                  <div><p className="text-xs text-slate-400">Gastos</p><p className="font-bold text-rose-600">{formatCurrency(expenses)}</p></div>
+                  <div className="text-right"><p className="text-xs text-slate-400">Utilidad real</p><p className="font-bold text-emerald-600">{formatCurrency(paid - paidExpenses)}</p></div>
                 </div>
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${percentage}%` }} /></div>
                 <div className="mt-2 flex justify-between text-[11px] text-slate-400"><span>{percentage}% cobrado</span><span>{formatCurrency(paid)} pagado</span></div>

@@ -5,6 +5,13 @@ export interface CatalogValue {
   value: string;
   order: number;
   active: boolean;
+  scopeTemplate: CatalogScopeTemplate[];
+}
+
+export interface CatalogScopeTemplate {
+  name: string;
+  scope: string;
+  amount?: number;
 }
 
 export interface Catalog {
@@ -25,6 +32,7 @@ interface CatalogRow {
     valor: string;
     orden: number;
     activo: boolean;
+    plantilla_alcances: CatalogScopeTemplate[] | null;
   }[];
 }
 
@@ -40,6 +48,7 @@ function mapCatalog(row: CatalogRow): Catalog {
         value: value.valor,
         order: value.orden,
         active: value.activo,
+        scopeTemplate: Array.isArray(value.plantilla_alcances) ? value.plantilla_alcances : [],
       }))
       .sort((a, b) => a.order - b.order || a.value.localeCompare(b.value)),
   };
@@ -49,7 +58,7 @@ export const catalogsService = {
   async getAll() {
     const { data, error } = await supabase
       .from('catalogos')
-      .select('id, clave, nombre, descripcion, catalogo_valores(id, valor, orden, activo)')
+      .select('id, clave, nombre, descripcion, catalogo_valores(id, valor, orden, activo, plantilla_alcances)')
       .order('nombre');
     if (error) throw error;
     return (data || []).map((row) => mapCatalog(row as CatalogRow));
@@ -58,7 +67,7 @@ export const catalogsService = {
   async getActiveValues(key: string) {
     const { data, error } = await supabase
       .from('catalogos')
-      .select('id, clave, nombre, descripcion, catalogo_valores(id, valor, orden, activo)')
+      .select('id, clave, nombre, descripcion, catalogo_valores(id, valor, orden, activo, plantilla_alcances)')
       .eq('clave', key)
       .eq('catalogo_valores.activo', true)
       .single();
@@ -76,10 +85,11 @@ export const catalogsService = {
   },
 
   async updateValue(id: string, patch: Partial<CatalogValue>) {
-    const row: Record<string, string | number | boolean> = {};
+    const row: Record<string, unknown> = {};
     if (patch.value !== undefined) row.valor = patch.value.trim();
     if (patch.order !== undefined) row.orden = patch.order;
     if (patch.active !== undefined) row.activo = patch.active;
+    if (patch.scopeTemplate !== undefined) row.plantilla_alcances = patch.scopeTemplate;
     const { error } = await supabase.from('catalogo_valores').update(row).eq('id', id);
     if (error) throw error;
   },
