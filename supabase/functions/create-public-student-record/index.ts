@@ -16,9 +16,8 @@ Deno.serve(async (req) => {
 
   const url = Deno.env.get('SUPABASE_URL')!;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const turnstileSecret = Deno.env.get('TURNSTILE_SECRET_KEY')!;
   const rateSalt = Deno.env.get('RATE_LIMIT_SALT')!;
-  if (!turnstileSecret || !rateSalt) return json({ message: 'La protección del formulario no está configurada.' }, 503, corsOrigin);
+  if (!rateSalt) return json({ message: 'La protección del formulario no está configurada.' }, 503, corsOrigin);
   const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const ip = (req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown').trim();
   const ipHash = await sha256(`${rateSalt}:${ip}`);
@@ -42,10 +41,6 @@ Deno.serve(async (req) => {
     const payloadSize = JSON.stringify(body).length;
     if (payloadSize > 1_500_000) { await log('blocked', 'payload_too_large', payloadSize); return json({ message: 'La fotografía o la solicitud es demasiado grande.' }, 413, corsOrigin); }
     if (String(body.website || '').trim()) { await log('blocked', 'honeypot', payloadSize); return json({ message: 'Solicitud rechazada.' }, 400, corsOrigin); }
-
-    const captchaBody = new URLSearchParams({ secret: turnstileSecret, response: String(body.captchaToken || ''), remoteip: ip });
-    const captcha = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: captchaBody }).then((response) => response.json());
-    if (!captcha.success) { await log('blocked', 'captcha_failed', payloadSize); return json({ message: 'La verificación de seguridad no fue válida.' }, 400, corsOrigin); }
 
     const record = body.record || {};
     if (!record.nombre || !record.gradoGrupo || !record.foto || !String(record.foto).startsWith('data:image/jpeg;base64,')) throw new Error('Faltan datos obligatorios o la fotografía no es válida.');

@@ -37,9 +37,9 @@ export const studentRecordsApi = {
     return record;
   },
 
-  async createPublic(record: StudentRecordData, captchaToken: string, website = '') {
+  async createPublic(record: StudentRecordData, website = '') {
     const { data, error } = await supabase.functions.invoke('create-public-student-record', {
-      body: { record, captchaToken, website },
+      body: { record, website },
     });
     if (error) throw new Error((data as any)?.message || error.message);
     if (!data?.record) throw new Error('La solicitud no devolvió el registro creado.');

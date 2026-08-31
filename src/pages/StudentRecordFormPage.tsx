@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useRef, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Camera, Save } from 'lucide-react';
 import { Button } from '../components/Button';
@@ -48,30 +48,10 @@ const personLabels: Array<[keyof PersonDetails, string, string?]> = [
   ['nombre', 'Nombre completo'], ['fechaNacimiento', 'Fecha de nacimiento'], ['curp', 'CURP'], ['escolaridad', 'Escolaridad'], ['ocupacion', 'Ocupación'], ['lugarTrabajo', 'Lugar de trabajo'], ['telefonoTrabajo', 'Teléfono del trabajo', 'tel'], ['celular', 'Celular', 'tel'], ['estadoCivil', 'Estado civil'],
 ];
 
-declare global { interface Window { turnstile?: { render: (element: HTMLElement, options: Record<string, unknown>) => string; reset: (id?: string) => void; remove: (id: string) => void } } }
-
-function TurnstileWidget({ onToken }: { onToken: (token: string) => void }) {
-  const container = useRef<HTMLDivElement>(null);
-  const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
-  useEffect(() => {
-    if (!siteKey) return;
-    let widgetId = '';
-    const render = () => { if (container.current && window.turnstile && !widgetId) widgetId = window.turnstile.render(container.current, { sitekey: siteKey, callback: onToken, 'expired-callback': () => onToken(''), 'error-callback': () => onToken(''), theme: 'light' }); };
-    const existing = document.querySelector<HTMLScriptElement>('script[data-avtech-turnstile]');
-    if (existing) render();
-    else { const script = document.createElement('script'); script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'; script.async = true; script.defer = true; script.dataset.avtechTurnstile = 'true'; script.onload = render; document.head.appendChild(script); }
-    const timer = window.setInterval(render, 250);
-    return () => { window.clearInterval(timer); if (widgetId && window.turnstile) window.turnstile.remove(widgetId); };
-  }, [siteKey]);
-  if (!siteKey) return <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Configura VITE_TURNSTILE_SITE_KEY para habilitar el formulario público.</p>;
-  return <div ref={container} />;
-}
-
 export function StudentRecordFormPage({ publicMode = false }: { publicMode?: boolean }) {
   const [form, setForm] = useState<StudentRecordData>(initialRecord);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState('');
   const [website, setWebsite] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const navigate = useNavigate();
@@ -116,11 +96,10 @@ export function StudentRecordFormPage({ publicMode = false }: { publicMode?: boo
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!form.foto) return notify('warning', 'Fotografía requerida', 'Selecciona la fotografía del estudiante.');
-    if (publicMode && !captchaToken) return notify('warning', 'Verificación requerida', 'Completa la verificación de seguridad antes de enviar.');
     setSaving(true);
     try {
       const normalizedForm = uppercaseRecord({ ...form, escuela: SCHOOL_NAME, maestra: TEACHER_NAME }) as StudentRecordData;
-      const saved = publicMode ? await studentRecordsApi.createPublic(normalizedForm, captchaToken, website) : editing && id ? await studentRecordsApi.update(id, normalizedForm) : await studentRecordsApi.create(normalizedForm);
+      const saved = publicMode ? await studentRecordsApi.createPublic(normalizedForm, website) : editing && id ? await studentRecordsApi.update(id, normalizedForm) : await studentRecordsApi.create(normalizedForm);
       await generateStudentRecordPdf(saved);
       notify('success', editing ? 'Ficha actualizada' : 'Ficha generada', editing ? 'Los cambios se guardaron y la ficha actualizada comenzó a descargarse.' : 'El registro se guardó y la ficha PDF comenzó a descargarse.');
       if (publicMode || profile?.rol !== 'admin') setSubmitted(true); else navigate('/fichas');
@@ -162,7 +141,7 @@ export function StudentRecordFormPage({ publicMode = false }: { publicMode?: boo
     </Section>
     {(['madre','padre'] as const).map((key) => <Section key={key} title={`Información de la ${key}`}><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{personLabels.map(([field,label,type]) => field === 'escolaridad' ? <SelectField key={field} label={label} value={form[key][field]} options={EDUCATION_LEVELS} onChange={(value) => setPerson(key, field, value)} /> : field === 'estadoCivil' ? <SelectField key={field} label={label} value={form[key][field]} options={CIVIL_STATUSES} onChange={(value) => setPerson(key, field, value)} /> : <Input key={field} required label={label} type="text" inputMode={type === 'tel' || field === 'fechaNacimiento' ? 'numeric' : undefined} maxLength={field === 'curp' ? 18 : type === 'tel' ? 12 : field === 'fechaNacimiento' ? 10 : undefined} pattern={field === 'curp' ? CURP_PATTERN : type === 'tel' ? PHONE_PATTERN : field === 'fechaNacimiento' ? DATE_PATTERN : undefined} title={field === 'curp' ? 'La CURP debe contener exactamente 18 caracteres válidos.' : type === 'tel' ? 'Ingresa un teléfono de 10 dígitos.' : field === 'fechaNacimiento' ? 'Usa el formato DD-MM-YYYY.' : undefined} placeholder={type === 'tel' ? '612-123-4567' : field === 'fechaNacimiento' ? 'DD-MM-YYYY' : undefined} value={form[key][field]} onChange={(e) => setPerson(key,field,type === 'tel' ? formatPhoneInput(e.target.value) : field === 'fechaNacimiento' ? formatDateInput(e.target.value) : e.target.value)} />)}</div></Section>)}
     <Section title="Contactos y personas autorizadas"><div className="grid gap-8 lg:grid-cols-2"><div><h3 className="mb-3 font-semibold text-slate-700">En caso de no localizar a los padres</h3>{form.emergencias.map((item,index) => <div key={index} className="mb-4 grid gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-3"><Input required label={`Contacto ${index+1}`} value={item.nombre} onChange={(e)=>setContact('emergencias',index,'nombre',e.target.value)}/><SelectField label="Parentesco" value={item.parentesco} options={RELATIONSHIPS} onChange={(value)=>setContact('emergencias',index,'parentesco',value)}/><Input required label="Teléfono" type="text" inputMode="numeric" maxLength={12} pattern={PHONE_PATTERN} title="Ingresa un teléfono de 10 dígitos." placeholder="612-123-4567" value={item.telefono} onChange={(e)=>setContact('emergencias',index,'telefono',formatPhoneInput(e.target.value))}/></div>)}</div><div><h3 className="mb-3 font-semibold text-slate-700">Autorizados para recoger al estudiante</h3>{form.autorizados.map((item,index) => <div key={index} className="mb-4 grid gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-2"><Input required label={`Persona ${index+1}`} value={item.nombre} onChange={(e)=>setContact('autorizados',index,'nombre',e.target.value)}/><SelectField label="Parentesco" value={item.parentesco} options={RELATIONSHIPS} onChange={(value)=>setContact('autorizados',index,'parentesco',value)}/></div>)}</div></div></Section>
-    {publicMode && <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><input aria-hidden="true" tabIndex={-1} autoComplete="off" className="absolute -left-[9999px]" name="website" value={website} onChange={(event) => setWebsite(event.target.value)} /><h2 className="mb-3 font-bold">Verificación de seguridad</h2><p className="mb-4 text-sm text-slate-500">Este control evita envíos automáticos y protege la disponibilidad del formulario.</p><TurnstileWidget onToken={setCaptchaToken} /></section>}
+    {publicMode && <input aria-hidden="true" tabIndex={-1} autoComplete="off" className="absolute -left-[9999px]" name="website" value={website} onChange={(event) => setWebsite(event.target.value)} />}
     <div className="sticky bottom-4 flex justify-end gap-3 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-lg backdrop-blur">{!publicMode && <Button type="button" variant="outline" onClick={()=>navigate('/fichas')}>Cancelar</Button>}<Button type="submit" isLoading={saving} leftIcon={<Save className="h-4 w-4" />}>{editing ? 'Guardar cambios' : publicMode ? 'Enviar ficha' : 'Guardar y generar PDF'}</Button></div>
   </form>;
 }
