@@ -29,17 +29,17 @@ drop policy if exists "Administrador edita fichas" on public.fichas_estudiantes;
 
 create policy "Administrador consulta fichas" on public.fichas_estudiantes
 for select to authenticated
-using (exists (select 1 from public.perfiles p where p.id = auth.uid() and p.rol = 'admin'))
+using (exists (select 1 from public.perfiles p where p.id = auth.uid() and p.rol in ('admin', 'fichas')))
 ;
 
 create policy "Personal crea fichas" on public.fichas_estudiantes
 for insert to authenticated
-with check (exists (select 1 from public.perfiles p where p.id = auth.uid() and p.rol in ('admin', 'arquitectura')));
+with check (exists (select 1 from public.perfiles p where p.id = auth.uid() and p.rol in ('admin', 'arquitectura', 'fichas')));
 
 create policy "Administrador edita fichas" on public.fichas_estudiantes
 for update to authenticated
-using (exists (select 1 from public.perfiles p where p.id = auth.uid() and p.rol = 'admin'))
-with check (exists (select 1 from public.perfiles p where p.id = auth.uid() and p.rol = 'admin'));
+using (exists (select 1 from public.perfiles p where p.id = auth.uid() and p.rol in ('admin', 'fichas')))
+with check (exists (select 1 from public.perfiles p where p.id = auth.uid() and p.rol in ('admin', 'fichas')));
 
 commit;
 notify pgrst, 'reload schema';

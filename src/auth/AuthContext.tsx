@@ -2,7 +2,7 @@ import { createContext, ReactNode, useContext, useEffect, useState } from 'react
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../services/supabaseClient';
 
-export type AppRole = 'admin' | 'arquitectura' | 'cliente';
+export type AppRole = 'admin' | 'arquitectura' | 'cliente' | 'fichas';
 
 export interface UserProfile {
   id: string;
@@ -20,13 +20,16 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-async function loadProfile(userId: string) {
+async function loadProfile(userId: string, email?: string) {
   const { data, error } = await supabase
     .from('perfiles')
     .select('id, nombre, rol')
     .eq('id', userId)
     .single();
   if (error) throw error;
+  // Defensa adicional de interfaz para la cuenta dedicada. La autorización real
+  // continúa aplicada mediante RLS en Supabase.
+  if (email?.toLowerCase() === 'fichas@avtech.local') return { ...data, rol: 'fichas' } as UserProfile;
   return data as UserProfile;
 }
 
@@ -47,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       try {
-        const nextProfile = await loadProfile(nextSession.user.id);
+        const nextProfile = await loadProfile(nextSession.user.id, nextSession.user.email);
         if (active) setProfile(nextProfile);
       } catch {
         if (active) setProfile(null);
@@ -75,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw error;
     }
     setSession(data.session);
-    const nextProfile = await loadProfile(data.user.id);
+    const nextProfile = await loadProfile(data.user.id, data.user.email);
     setProfile(nextProfile);
     setLoading(false);
   };

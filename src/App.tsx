@@ -40,6 +40,8 @@ export default function App() {
                 <Route path="/listado" element={<ProjectListPage />} />
                 <Route path="/registro" element={<ProjectRegistrationPage />} />
                 <Route path="/editar/:id" element={<ProjectEditPage />} />
+              </Route>
+              <Route element={<ProtectedRoute allowedRoles={['admin', 'fichas']} />}>
                 <Route path="/fichas" element={<StudentRecordListPage />} />
                 <Route path="/fichas/nueva-interna" element={<StudentRecordFormPage />} />
                 <Route path="/fichas/editar/:id" element={<StudentRecordFormPage />} />

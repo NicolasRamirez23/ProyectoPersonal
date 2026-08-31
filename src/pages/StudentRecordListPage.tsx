@@ -16,7 +16,7 @@ export function StudentRecordListPage() {
   const navigate = useNavigate();
   const { notify } = useAlerts();
   const { profile } = useAuth();
-  const isAdmin = profile?.rol === 'admin';
+  const canManage = profile?.rol === 'admin' || profile?.rol === 'fichas';
 
   useEffect(() => {
     let active = true;
@@ -37,7 +37,7 @@ export function StudentRecordListPage() {
       <tbody className="divide-y divide-slate-100">{loading ? <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400">Cargando fichas...</td></tr> : filtered.length ? filtered.map((record) => <tr key={record.id} className="hover:bg-blue-50/40">
         <td className="px-6 py-4"><div className="flex items-center gap-3">{record.foto ? <img src={record.foto} alt={`Fotografía de ${record.nombre}`} className="h-11 w-11 rounded-full object-cover" /> : <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100"><UserRound className="h-5 w-5" /></div>}<span className="font-semibold">{record.nombre}</span></div></td>
         <td className="px-6 py-4 text-sm text-slate-600">{record.escuela}</td><td className="px-6 py-4 text-sm">{record.gradoGrupo}</td><td className="px-6 py-4 text-sm text-slate-500">{record.createdAt ? new Date(record.createdAt).toLocaleDateString('es-MX') : ''}</td>
-        <td className="px-6 py-4"><div className="flex justify-end gap-2">{isAdmin && <Button variant="outline" size="sm" leftIcon={<Pencil className="h-4 w-4" />} onClick={() => navigate(`/fichas/editar/${record.id}`)}>Editar</Button>}<Button variant="outline" size="sm" leftIcon={<FileDown className="h-4 w-4" />} onClick={() => generateStudentRecordPdf(record)}>Descargar</Button></div></td>
+        <td className="px-6 py-4"><div className="flex justify-end gap-2">{canManage && <Button variant="outline" size="sm" leftIcon={<Pencil className="h-4 w-4" />} onClick={() => navigate(`/fichas/editar/${record.id}`)}>Editar</Button>}<Button variant="outline" size="sm" leftIcon={<FileDown className="h-4 w-4" />} onClick={() => generateStudentRecordPdf(record)}>Descargar</Button></div></td>
       </tr>) : <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400">No hay fichas registradas.</td></tr>}</tbody>
     </table></div></div>
   </div>;

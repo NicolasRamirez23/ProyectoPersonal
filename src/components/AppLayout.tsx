@@ -58,10 +58,10 @@ export function AppLayout({ children }: LayoutProps) {
     {
       label: 'Módulo General',
       icon: ContactRound,
-      roles: ['admin', 'arquitectura'],
+      roles: ['admin', 'fichas'],
       isFolder: true,
       children: [
-        ...(profile?.rol === 'admin' ? [{ to: '/fichas', label: 'Fichas de estudiantes', icon: ContactRound }] : []),
+        { to: '/fichas', label: 'Fichas de estudiantes', icon: ContactRound },
         { to: '/fichas/nueva-interna', label: 'Nueva ficha', icon: PlusCircle },
       ]
     },
@@ -231,7 +231,7 @@ export function AppLayout({ children }: LayoutProps) {
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold text-slate-800 leading-none">{profile?.nombre || 'Usuario'}</p>
-              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">{profile?.rol === 'admin' ? 'Administrador' : profile?.rol === 'cliente' ? 'Cliente' : 'Arquitectura'}</p>
+              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">{profile?.rol === 'admin' ? 'Administrador' : profile?.rol === 'cliente' ? 'Cliente' : profile?.rol === 'fichas' ? 'FICHAS' : 'Arquitectura'}</p>
             </div>
             <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-bold shadow-sm">
               {(profile?.nombre || 'U').charAt(0).toUpperCase()}

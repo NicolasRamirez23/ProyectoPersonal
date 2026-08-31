@@ -16,11 +16,11 @@ export function LoginPage() {
   useEffect(() => {
     if (session && profile) {
       const requested = (location.state as { from?: string } | null)?.from;
-      navigate(requested || (profile.rol === 'admin' ? '/' : profile.rol === 'cliente' ? '/cliente' : '/arquitectura/resumen'), { replace: true });
+      navigate(requested || (profile.rol === 'admin' ? '/' : profile.rol === 'cliente' ? '/cliente' : profile.rol === 'fichas' ? '/fichas' : '/arquitectura/resumen'), { replace: true });
     }
   }, [session, profile, location.state, navigate]);
 
-  if (session && profile) return <Navigate to={profile.rol === 'admin' ? '/' : profile.rol === 'cliente' ? '/cliente' : '/arquitectura/resumen'} replace />;
+  if (session && profile) return <Navigate to={profile.rol === 'admin' ? '/' : profile.rol === 'cliente' ? '/cliente' : profile.rol === 'fichas' ? '/fichas' : '/arquitectura/resumen'} replace />;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();

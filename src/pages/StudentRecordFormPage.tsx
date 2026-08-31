@@ -102,7 +102,7 @@ export function StudentRecordFormPage({ publicMode = false }: { publicMode?: boo
       const saved = publicMode ? await studentRecordsApi.createPublic(normalizedForm, website) : editing && id ? await studentRecordsApi.update(id, normalizedForm) : await studentRecordsApi.create(normalizedForm);
       await generateStudentRecordPdf(saved);
       notify('success', editing ? 'Ficha actualizada' : 'Ficha generada', editing ? 'Los cambios se guardaron y la ficha actualizada comenzó a descargarse.' : 'El registro se guardó y la ficha PDF comenzó a descargarse.');
-      if (publicMode || profile?.rol !== 'admin') setSubmitted(true); else navigate('/fichas');
+      if (publicMode || !['admin', 'fichas'].includes(profile?.rol || '')) setSubmitted(true); else navigate('/fichas');
     } catch (error: any) {
       notify('error', 'No se pudo crear la ficha', error.message || 'Inténtalo nuevamente.');
     } finally { setSaving(false); }
