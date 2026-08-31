@@ -38,12 +38,16 @@ export const studentRecordsApi = {
   },
 
   async createPublic(record: StudentRecordData, website = '') {
-    const { data, error } = await supabase.functions.invoke('create-public-student-record', {
-      body: { record, website },
+    if (website.trim()) throw new Error('Solicitud rechazada.');
+    const { error } = await supabase.from('fichas_estudiantes').insert({
+      nombre: record.nombre,
+      escuela: record.escuela,
+      grado_grupo: record.gradoGrupo,
+      foto: record.foto,
+      datos: record,
     });
-    if (error) throw new Error((data as any)?.message || error.message);
-    if (!data?.record) throw new Error('La solicitud no devolvió el registro creado.');
-    return data.record as StudentRecordData;
+    if (error) throw new Error(error.message);
+    return record;
   },
 
   async getById(id: string) {
