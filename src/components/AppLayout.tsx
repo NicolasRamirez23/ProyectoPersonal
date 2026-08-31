@@ -14,7 +14,7 @@ import {
   ChevronDown, // 🚀 Nuevo para subcarpetas
   Building2    // 🚀 Icono para identificar el módulo de Propiedades
 } from 'lucide-react';
-import { DraftingCompass, Code2 } from 'lucide-react';
+import { DraftingCompass, Code2, ContactRound } from 'lucide-react';
 import { LogOut } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -33,6 +33,7 @@ export function AppLayout({ children }: LayoutProps) {
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({
     'Proyectos de Programación': true,
     'Proyectos Arquitectónicos': true,
+    'Módulo General': true,
   });
 
   const toggleFolder = (label: string) => {
@@ -52,6 +53,16 @@ export function AppLayout({ children }: LayoutProps) {
         { to: '/registro', label: 'Nuevo proyecto', icon: PlusCircle },
         // 💡 Cuando quieras agregar más sub-módulos, solo colócalos aquí abajo:
         // { to: '/mantenimiento', label: 'Mantenimiento', icon: Wrench }
+      ]
+    },
+    {
+      label: 'Módulo General',
+      icon: ContactRound,
+      roles: ['admin', 'arquitectura'],
+      isFolder: true,
+      children: [
+        ...(profile?.rol === 'admin' ? [{ to: '/fichas', label: 'Fichas de estudiantes', icon: ContactRound }] : []),
+        { to: '/fichas/nueva', label: 'Nueva ficha', icon: PlusCircle },
       ]
     },
     {
