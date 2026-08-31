@@ -32,6 +32,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/ficha-publica" element={<StudentRecordFormPage publicMode />} />
+          <Route path="/fichas/nueva" element={<StudentRecordFormPage publicMode />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<AppShell />}>
               <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
@@ -40,10 +41,10 @@ export default function App() {
                 <Route path="/registro" element={<ProjectRegistrationPage />} />
                 <Route path="/editar/:id" element={<ProjectEditPage />} />
                 <Route path="/fichas" element={<StudentRecordListPage />} />
+                <Route path="/fichas/nueva-interna" element={<StudentRecordFormPage />} />
                 <Route path="/fichas/editar/:id" element={<StudentRecordFormPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['admin', 'arquitectura']} />}>
-                <Route path="/fichas/nueva" element={<StudentRecordFormPage />} />
                 <Route path="/arquitectura/resumen" element={<ArchitectureDashboardPage />} />
                 <Route path="/arquitectura" element={<ArchitecturalProjectListPage />} />
                 <Route path="/arquitectura/nuevo" element={<ArchitecturalProjectFormPage />} />

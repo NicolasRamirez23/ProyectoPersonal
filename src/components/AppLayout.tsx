@@ -62,7 +62,7 @@ export function AppLayout({ children }: LayoutProps) {
       isFolder: true,
       children: [
         ...(profile?.rol === 'admin' ? [{ to: '/fichas', label: 'Fichas de estudiantes', icon: ContactRound }] : []),
-        { to: '/fichas/nueva', label: 'Nueva ficha', icon: PlusCircle },
+        { to: '/fichas/nueva-interna', label: 'Nueva ficha', icon: PlusCircle },
       ]
     },
     {
