@@ -20,6 +20,8 @@ import { AlertProvider } from './components/AlertProvider';
 import { ArchitectureDashboardPage } from './pages/ArchitectureDashboardPage';
 import { StudentRecordListPage } from './pages/StudentRecordListPage';
 import { StudentRecordFormPage } from './pages/StudentRecordFormPage';
+import { ImportacionesLaraListPage } from './pages/ImportacionesLaraListPage';
+import { ImportacionesLaraFormPage } from './pages/ImportacionesLaraFormPage';
 
 function AppShell() {
   return <AppLayout><Outlet /></AppLayout>;
@@ -40,6 +42,11 @@ export default function App() {
                 <Route path="/listado" element={<ProjectListPage />} />
                 <Route path="/registro" element={<ProjectRegistrationPage />} />
                 <Route path="/editar/:id" element={<ProjectEditPage />} />
+              </Route>
+              <Route element={<ProtectedRoute allowedRoles={['admin', 'importaciones_lara']} />}>
+                <Route path="/importaciones-lara" element={<ImportacionesLaraListPage />} />
+                <Route path="/importaciones-lara/nuevo" element={<ImportacionesLaraFormPage />} />
+                <Route path="/importaciones-lara/editar/:id" element={<ImportacionesLaraFormPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['admin', 'fichas']} />}>
                 <Route path="/fichas" element={<StudentRecordListPage />} />

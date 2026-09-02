@@ -14,7 +14,7 @@ import {
   ChevronDown, // 🚀 Nuevo para subcarpetas
   Building2    // 🚀 Icono para identificar el módulo de Propiedades
 } from 'lucide-react';
-import { DraftingCompass, Code2, ContactRound } from 'lucide-react';
+import { DraftingCompass, Code2, ContactRound, PackageSearch, ReceiptText } from 'lucide-react';
 import { LogOut } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -34,6 +34,7 @@ export function AppLayout({ children }: LayoutProps) {
     'Proyectos de Programación': true,
     'Proyectos Arquitectónicos': true,
     'Módulo General': true,
+    'Importaciones Lara': true,
   });
 
   const toggleFolder = (label: string) => {
@@ -63,6 +64,16 @@ export function AppLayout({ children }: LayoutProps) {
       children: [
         { to: '/fichas', label: 'Fichas de estudiantes', icon: ContactRound },
         { to: '/fichas/nueva-interna', label: 'Nueva ficha', icon: PlusCircle },
+      ]
+    },
+    {
+      label: 'Importaciones Lara',
+      icon: PackageSearch,
+      roles: ['admin', 'importaciones_lara'],
+      isFolder: true,
+      children: [
+        { to: '/importaciones-lara', label: 'Recibos', icon: ReceiptText },
+        { to: '/importaciones-lara/nuevo', label: 'Nuevo recibo', icon: PlusCircle },
       ]
     },
     {
@@ -231,7 +242,7 @@ export function AppLayout({ children }: LayoutProps) {
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold text-slate-800 leading-none">{profile?.nombre || 'Usuario'}</p>
-              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">{profile?.rol === 'admin' ? 'Administrador' : profile?.rol === 'cliente' ? 'Cliente' : profile?.rol === 'fichas' ? 'FICHAS' : 'Arquitectura'}</p>
+              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">{profile?.rol === 'admin' ? 'Administrador' : profile?.rol === 'cliente' ? 'Cliente' : profile?.rol === 'fichas' ? 'FICHAS' : profile?.rol === 'importaciones_lara' ? 'IMPORTACIONES LARA' : 'Arquitectura'}</p>
             </div>
             <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-bold shadow-sm">
               {(profile?.nombre || 'U').charAt(0).toUpperCase()}

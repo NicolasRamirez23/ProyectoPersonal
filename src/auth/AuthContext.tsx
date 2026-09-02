@@ -2,7 +2,7 @@ import { createContext, ReactNode, useContext, useEffect, useState } from 'react
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../services/supabaseClient';
 
-export type AppRole = 'admin' | 'arquitectura' | 'cliente' | 'fichas';
+export type AppRole = 'admin' | 'arquitectura' | 'cliente' | 'fichas' | 'importaciones_lara';
 
 export interface UserProfile {
   id: string;
@@ -30,6 +30,7 @@ async function loadProfile(userId: string, email?: string) {
   // Defensa adicional de interfaz para la cuenta dedicada. La autorización real
   // continúa aplicada mediante RLS en Supabase.
   if (email?.toLowerCase() === 'fichas@avtech.local') return { ...data, rol: 'fichas' } as UserProfile;
+  if (email?.toLowerCase() === 'importaciones_lara@avtech.local') return { ...data, rol: 'importaciones_lara' } as UserProfile;
   return data as UserProfile;
 }
 

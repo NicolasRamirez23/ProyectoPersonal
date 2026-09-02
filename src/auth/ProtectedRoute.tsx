@@ -11,7 +11,7 @@ export function ProtectedRoute({ allowedRoles }: { allowedRoles?: AppRole[] }) {
   if (!session) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   if (!profile) return <Navigate to="/login" replace />;
   if (allowedRoles && !allowedRoles.includes(profile.rol)) {
-    return <Navigate to={profile.rol === 'cliente' ? '/cliente' : profile.rol === 'arquitectura' ? '/arquitectura/resumen' : profile.rol === 'fichas' ? '/fichas' : '/'} replace />;
+    return <Navigate to={profile.rol === 'cliente' ? '/cliente' : profile.rol === 'arquitectura' ? '/arquitectura/resumen' : profile.rol === 'fichas' ? '/fichas' : profile.rol === 'importaciones_lara' ? '/importaciones-lara' : '/'} replace />;
   }
   return <Outlet />;
 }
