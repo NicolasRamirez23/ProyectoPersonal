@@ -22,6 +22,7 @@ import { StudentRecordListPage } from './pages/StudentRecordListPage';
 import { StudentRecordFormPage } from './pages/StudentRecordFormPage';
 import { ImportacionesLaraListPage } from './pages/ImportacionesLaraListPage';
 import { ImportacionesLaraFormPage } from './pages/ImportacionesLaraFormPage';
+import { InventarioLaraPage } from './pages/InventarioLaraPage';
 
 function AppShell() {
   return <AppLayout><Outlet /></AppLayout>;
@@ -47,6 +48,7 @@ export default function App() {
                 <Route path="/importaciones-lara" element={<ImportacionesLaraListPage />} />
                 <Route path="/importaciones-lara/nuevo" element={<ImportacionesLaraFormPage />} />
                 <Route path="/importaciones-lara/editar/:id" element={<ImportacionesLaraFormPage />} />
+                <Route path="/importaciones-lara/inventario" element={<InventarioLaraPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['admin', 'fichas']} />}>
                 <Route path="/fichas" element={<StudentRecordListPage />} />

@@ -14,7 +14,7 @@ import {
   ChevronDown, // 🚀 Nuevo para subcarpetas
   Building2    // 🚀 Icono para identificar el módulo de Propiedades
 } from 'lucide-react';
-import { DraftingCompass, Code2, ContactRound, PackageSearch, ReceiptText } from 'lucide-react';
+import { DraftingCompass, Code2, ContactRound, PackageSearch, ReceiptText, Boxes } from 'lucide-react';
 import { LogOut } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -74,6 +74,7 @@ export function AppLayout({ children }: LayoutProps) {
       children: [
         { to: '/importaciones-lara', label: 'Recibos', icon: ReceiptText },
         { to: '/importaciones-lara/nuevo', label: 'Nuevo recibo', icon: PlusCircle },
+        { to: '/importaciones-lara/inventario', label: 'Control de inventario', icon: Boxes },
       ]
     },
     {
