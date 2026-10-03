@@ -3,6 +3,12 @@ alter type public.app_role add value if not exists 'notaria';
 commit;
 
 begin;
+-- La Edge Function usa service_role para crear o actualizar el perfil
+-- del usuario exclusivo de Notaría. Este rol continúa protegido y omite RLS.
+grant usage on schema public to service_role;
+grant usage on type public.app_role to service_role;
+grant select, insert, update on public.perfiles to service_role;
+
 create or replace function public.crear_perfil_usuario()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
