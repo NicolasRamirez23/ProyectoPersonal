@@ -24,5 +24,9 @@ Deno.serve(async (req) => {
     const { error: profileError } = await admin.from('perfiles').upsert({ id: userId, nombre: cleanName, rol: 'notaria' });
     if (profileError) { if (created) await admin.auth.admin.deleteUser(userId); throw new Error(`No se pudo asignar el acceso de Notaría: ${profileError.message}`); }
     return json({ username: 'vladimir_davis', name: cleanName, created });
-  } catch (error) { return json({ message: error instanceof Error ? error.message : 'No se pudo guardar el usuario.' }, 400); }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'No se pudo guardar el usuario.';
+    console.error('[manage-notary-user] request failed', { message });
+    return json({ message }, 400);
+  }
 });
