@@ -11,6 +11,8 @@ export interface LaraInventoryProduct {
   precioVenta: number;
   notas: string;
   activo: boolean;
+  imagenRuta?: string;
+  imagenUrl?: string;
 }
 
 export interface LaraInventoryMovement {

@@ -23,6 +23,12 @@ import { StudentRecordFormPage } from './pages/StudentRecordFormPage';
 import { ImportacionesLaraListPage } from './pages/ImportacionesLaraListPage';
 import { ImportacionesLaraFormPage } from './pages/ImportacionesLaraFormPage';
 import { InventarioLaraPage } from './pages/InventarioLaraPage';
+import { BankStatementConverterPage } from './pages/BankStatementConverterPage';
+import { BankReconciliationPage } from './pages/BankReconciliationPage';
+import { NotaryFormatsPage } from './pages/NotaryFormatsPage';
+import { NotarySearchOfficePage } from './pages/NotarySearchOfficePage';
+import { NotaryDocumentsPage } from './pages/NotaryDocumentsPage';
+import { NotaryUserPage } from './pages/NotaryUserPage';
 
 function AppShell() {
   return <AppLayout><Outlet /></AppLayout>;
@@ -43,6 +49,14 @@ export default function App() {
                 <Route path="/listado" element={<ProjectListPage />} />
                 <Route path="/registro" element={<ProjectRegistrationPage />} />
                 <Route path="/editar/:id" element={<ProjectEditPage />} />
+                <Route path="/bancos/convertir" element={<BankStatementConverterPage />} />
+                <Route path="/bancos/conciliar" element={<BankReconciliationPage />} />
+                <Route path="/notaria/usuario" element={<NotaryUserPage />} />
+              </Route>
+              <Route element={<ProtectedRoute allowedRoles={['admin', 'notaria']} />}>
+                <Route path="/notaria" element={<NotaryFormatsPage />} />
+                <Route path="/notaria/busqueda-radicacion" element={<NotarySearchOfficePage />} />
+                <Route path="/notaria/documentos" element={<NotaryDocumentsPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['admin', 'importaciones_lara']} />}>
                 <Route path="/importaciones-lara" element={<ImportacionesLaraListPage />} />

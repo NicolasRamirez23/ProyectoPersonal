@@ -14,7 +14,7 @@ import {
   ChevronDown, // 🚀 Nuevo para subcarpetas
   Building2    // 🚀 Icono para identificar el módulo de Propiedades
 } from 'lucide-react';
-import { DraftingCompass, Code2, ContactRound, PackageSearch, ReceiptText, Boxes } from 'lucide-react';
+import { DraftingCompass, Code2, ContactRound, PackageSearch, ReceiptText, Boxes, Landmark, FileSpreadsheet, Split, Scale, FileSearch, FileText, Archive, UserCog } from 'lucide-react';
 import { LogOut } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -35,6 +35,8 @@ export function AppLayout({ children }: LayoutProps) {
     'Proyectos Arquitectónicos': true,
     'Módulo General': true,
     'Importaciones Lara': true,
+    'Herramientas bancarias': true,
+    'Notaría': true,
   });
 
   const toggleFolder = (label: string) => {
@@ -44,6 +46,28 @@ export function AppLayout({ children }: LayoutProps) {
   // 🚀 Estructura nueva con soporte para carpetas (isFolder) e hijos (children)
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin'] },
+    {
+      label: 'Notaría',
+      icon: Scale,
+      roles: ['admin', 'notaria'],
+      isFolder: true,
+      children: [
+        { to: '/notaria', label: 'Formatos', icon: FileSearch, roles: ['admin', 'notaria'] },
+        { to: '/notaria/busqueda-radicacion', label: 'Búsqueda de radicación', icon: FileText, roles: ['admin', 'notaria'] },
+        { to: '/notaria/documentos', label: 'Archivo de documentos', icon: Archive, roles: ['admin', 'notaria'] },
+        { to: '/notaria/usuario', label: 'Usuario del módulo', icon: UserCog, roles: ['admin'] },
+      ]
+    },
+    {
+      label: 'Herramientas bancarias',
+      icon: Landmark,
+      roles: ['admin'],
+      isFolder: true,
+      children: [
+        { to: '/bancos/convertir', label: 'Estado de cuenta a Excel', icon: FileSpreadsheet },
+        { to: '/bancos/conciliar', label: 'Conciliar pagos', icon: Split },
+      ]
+    },
     {
       label: 'Proyectos de Programación',
       icon: Code2,
@@ -169,7 +193,7 @@ export function AppLayout({ children }: LayoutProps) {
                         transition={{ duration: 0.2, ease: "easeInOut" }}
                         className="overflow-hidden pl-4 border-l border-slate-800/80 ml-6 space-y-1"
                       >
-                        {item.children?.map((child) => {
+                        {item.children?.filter((child) => !child.roles || child.roles.includes(profile?.rol || 'arquitectura')).map((child) => {
                           const ChildIcon = child.icon;
                           return (
                             <NavLink
@@ -243,7 +267,7 @@ export function AppLayout({ children }: LayoutProps) {
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold text-slate-800 leading-none">{profile?.nombre || 'Usuario'}</p>
-              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">{profile?.rol === 'admin' ? 'Administrador' : profile?.rol === 'cliente' ? 'Cliente' : profile?.rol === 'fichas' ? 'FICHAS' : profile?.rol === 'importaciones_lara' ? 'IMPORTACIONES LARA' : 'Arquitectura'}</p>
+              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">{profile?.rol === 'admin' ? 'Administrador' : profile?.rol === 'cliente' ? 'Cliente' : profile?.rol === 'fichas' ? 'FICHAS' : profile?.rol === 'importaciones_lara' ? 'IMPORTACIONES LARA' : profile?.rol === 'notaria' ? 'NOTARÍA' : 'Arquitectura'}</p>
             </div>
             <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-bold shadow-sm">
               {(profile?.nombre || 'U').charAt(0).toUpperCase()}
