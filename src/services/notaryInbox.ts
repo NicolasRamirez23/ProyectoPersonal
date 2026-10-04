@@ -24,6 +24,12 @@ export const notaryInboxApi = {
     if (status) query = query.eq('estado', status);
     const { data, error } = await query; if (error) throw new Error(error.message); return (data || []).map(fromRow);
   },
+  async matchingClients(data: NotaryExtractedData) {
+    const filters = [data.curp && `curp.ilike.${data.curp}`, data.rfc && `rfc.ilike.${data.rfc}`].filter(Boolean).join(',');
+    if (!filters) return [];
+    const { data: rows, error } = await supabase.from('notaria_clientes').select('id, curp, rfc, nombres, apellido_paterno, apellido_materno, domicilio').or(filters).limit(5);
+    if (error) throw new Error(error.message); return rows || [];
+  },
   async upload(caseData: { id: string; clientId: string }, file: File, progress?: (message: string) => void) {
     if (file.size > 15 * 1024 * 1024) throw new Error(`${file.name}: supera el límite de 15 MB.`);
     const allowed = ['application/pdf','image/jpeg','image/png','image/webp','application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
@@ -45,9 +51,9 @@ export const notaryInboxApi = {
     await audit(data.id, 'lectura_local', { tipo: analysis.type, confianza: analysis.confidence });
     return fromRow(data);
   },
-  async review(id: string, input: { status: NotaryDocumentStatus; type: string; role: string; data: NotaryExtractedData; notes: string }) {
+  async review(id: string, input: { status: NotaryDocumentStatus; type: string; role: string; data: NotaryExtractedData; notes: string; clientId?: string }) {
     const { data: user } = await supabase.auth.getUser();
-    const { error } = await supabase.from('notaria_documentos_expediente').update({ estado: input.status, tipo_confirmado: input.type, rol_confirmado: input.role, datos_extraidos: input.data, notas: input.notes, revisado_por: user.user?.id, revisado_el: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', id);
+    const { error } = await supabase.from('notaria_documentos_expediente').update({ estado: input.status, tipo_confirmado: input.type, rol_confirmado: input.role, datos_extraidos: input.data, notas: input.notes, cliente_id: input.clientId || null, revisado_por: user.user?.id, revisado_el: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', id);
     if (error) throw new Error(error.message);
     await audit(id, input.status === 'confirmado' ? 'confirmacion' : input.status === 'rechazado' ? 'rechazo' : 'revision', { tipo: input.type, rol: input.role });
   },

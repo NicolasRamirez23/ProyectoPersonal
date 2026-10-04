@@ -1,5 +1,6 @@
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import JSZip from 'jszip';
 import type { NotaryExtractedData } from '../types/notaryProcess';
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -7,14 +8,46 @@ export interface LocalDocumentAnalysis { text: string; type: string; role: strin
 const clean = (value: string) => value.replace(/\s+/g, ' ').trim();
 const normalized = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
 
-async function pdfText(file: File) {
+async function renderPdfPage(page: any) {
+  const viewport = page.getViewport({ scale: 1.8 });
+  const canvas = window.document.createElement('canvas');
+  canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('No se pudo preparar la página para OCR.');
+  await page.render({ canvasContext: context, viewport, canvas }).promise;
+  return canvas;
+}
+
+async function pdfText(file: File, progress?: (message: string) => void) {
   const pdf = await getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
   const pages: string[] = [];
   for (let pageNumber = 1; pageNumber <= Math.min(pdf.numPages, 15); pageNumber += 1) {
+    progress?.(`Leyendo texto de la página ${pageNumber}…`);
     const content = await (await pdf.getPage(pageNumber)).getTextContent();
     pages.push(content.items.map((item: any) => item.str || '').join(' '));
   }
-  return clean(pages.join('\n'));
+  const directText = clean(pages.join('\n'));
+  if (directText.length >= 80) return directText;
+  const { createWorker } = await import('tesseract.js');
+  progress?.('El PDF parece escaneado; preparando OCR local…');
+  const worker = await createWorker('spa');
+  try {
+    const recognized: string[] = [];
+    for (let pageNumber = 1; pageNumber <= Math.min(pdf.numPages, 5); pageNumber += 1) {
+      progress?.(`Aplicando OCR local a la página ${pageNumber}…`);
+      const result = await worker.recognize(await renderPdfPage(await pdf.getPage(pageNumber)));
+      recognized.push(result.data.text);
+    }
+    return clean(recognized.join('\n'));
+  } finally { await worker.terminate(); }
+}
+
+async function docxText(file: File) {
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const xml = await zip.file('word/document.xml')?.async('text');
+  if (!xml) return '';
+  const parsed = new DOMParser().parseFromString(xml, 'application/xml');
+  return clean([...parsed.getElementsByTagNameNS('*', 't')].map((node) => node.textContent || '').join(' '));
 }
 
 async function ocrImage(file: File, progress?: (message: string) => void) {
@@ -77,8 +110,9 @@ export async function sha256(file: File) {
 export async function analyzeNotaryDocument(file: File, progress?: (message: string) => void): Promise<LocalDocumentAnalysis> {
   const extension = file.name.split('.').pop()?.toLowerCase();
   let text = '';
-  if (file.type === 'application/pdf' || extension === 'pdf') { progress?.('Leyendo texto del PDF localmente…'); text = await pdfText(file); }
+  if (file.type === 'application/pdf' || extension === 'pdf') { progress?.('Leyendo texto del PDF localmente…'); text = await pdfText(file, progress); }
   else if (file.type.startsWith('image/')) text = await ocrImage(file, progress);
+  else if (extension === 'docx') { progress?.('Leyendo el documento Word localmente…'); text = await docxText(file); }
   const classification = classify(text, file.name);
   return { text, type: classification.type, role: detectRole(text), confidence: classification.confidence, data: extract(text) };
 }
