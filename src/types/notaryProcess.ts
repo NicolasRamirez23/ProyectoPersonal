@@ -20,6 +20,15 @@ export interface NotaryCase {
 }
 export interface NotaryStageDraft { concept: string; description: string; deadline: string; cost: number; responsible: string; }
 
+export type NotaryDocumentStatus = 'pendiente' | 'procesando' | 'por_revisar' | 'confirmado' | 'rechazado' | 'error';
+export interface NotaryExtractedData { nombre?: string; curp?: string; rfc?: string; domicilio?: string; fechaNacimiento?: string; claveElector?: string; numeroDocumento?: string; [key: string]: string | undefined; }
+export interface NotaryInboxDocument {
+  id: string; createdAt: string; caseId: string; caseFolio: string; caseTitle: string; clientId?: string;
+  fileName: string; path: string; mimeType: string; size: number; hash: string; detectedType: string;
+  confirmedType: string; detectedRole: string; confirmedRole: string; status: NotaryDocumentStatus;
+  confidence: number; extractedData: NotaryExtractedData; extractedText: string; notes: string;
+}
+
 export type SuccessionRoute = 'testamentaria' | 'intestamentaria';
 export interface SuccessionPerson { client: Omit<NotaryClient, 'id'> & { id?: string }; role: 'solicitante' | 'heredero' | 'albacea' | 'testigo' | 'otro'; relationship: string; principal: boolean; }
 export interface SuccessionRequirement { id: string; code: string; name: string; required: boolean; status: 'pendiente' | 'recibido' | 'validado' | 'rechazado' | 'no_aplica'; fileName?: string; path?: string; expiresAt?: string; notes: string; }
