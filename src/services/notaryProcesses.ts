@@ -5,6 +5,7 @@ const BUCKET = 'expedientes-notaria';
 const clientFromRow = (row: any): NotaryClient => ({
   id: row.id, curp: row.curp, nombres: row.nombres, apellidoPaterno: row.apellido_paterno || '', apellidoMaterno: row.apellido_materno || '',
   rfc: row.rfc || '', email: row.email || '', telefono: row.telefono || '', domicilio: row.domicilio || '', notas: row.notas || '',
+  birthPlace: row.lugar_nacimiento || '', birthDate: row.fecha_nacimiento || '', nationality: row.nacionalidad || 'MEXICANA', maritalStatus: row.estado_civil || '', occupation: row.ocupacion || '',
 });
 const nameOf = (client: NotaryClient) => [client.nombres, client.apellidoPaterno, client.apellidoMaterno].filter(Boolean).join(' ');
 const caseFromRows = (row: any, stages: any[] = [], payments: any[] = [], orders: any[] = [], documents: any[] = []): NotaryCase => ({
@@ -24,7 +25,7 @@ export const notaryProcessesApi = {
     if (error) throw new Error(error.message); return data ? clientFromRow(data) : null;
   },
   async saveClient(input: Omit<NotaryClient, 'id'> & { id?: string }) {
-    const payload = { curp: input.curp.trim().toUpperCase(), nombres: input.nombres.trim().toUpperCase(), apellido_paterno: input.apellidoPaterno.trim().toUpperCase(), apellido_materno: input.apellidoMaterno.trim().toUpperCase(), rfc: input.rfc.trim().toUpperCase(), email: input.email.trim().toLowerCase(), telefono: input.telefono.trim(), domicilio: input.domicilio.trim(), notas: input.notas.trim(), updated_at: new Date().toISOString() };
+    const payload = { curp: input.curp.trim().toUpperCase(), nombres: input.nombres.trim().toUpperCase(), apellido_paterno: input.apellidoPaterno.trim().toUpperCase(), apellido_materno: input.apellidoMaterno.trim().toUpperCase(), rfc: input.rfc.trim().toUpperCase(), email: input.email.trim().toLowerCase(), telefono: input.telefono.trim(), domicilio: input.domicilio.trim(), notas: input.notas.trim(), lugar_nacimiento: input.birthPlace?.trim() || '', fecha_nacimiento: input.birthDate || null, nacionalidad: input.nationality?.trim().toUpperCase() || 'MEXICANA', estado_civil: input.maritalStatus?.trim() || '', ocupacion: input.occupation?.trim() || '', updated_at: new Date().toISOString() };
     const query = input.id ? supabase.from('notaria_clientes').update(payload).eq('id', input.id) : supabase.from('notaria_clientes').insert(payload);
     const { data, error } = await query.select('*').single(); if (error) throw new Error(error.message); return clientFromRow(data);
   },

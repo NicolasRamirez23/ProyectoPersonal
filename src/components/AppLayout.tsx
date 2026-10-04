@@ -14,7 +14,7 @@ import {
   ChevronDown, // 🚀 Nuevo para subcarpetas
   Building2    // 🚀 Icono para identificar el módulo de Propiedades
 } from 'lucide-react';
-import { DraftingCompass, Code2, ContactRound, PackageSearch, ReceiptText, Boxes, Landmark, FileSpreadsheet, Split, Scale, FileSearch, FileText, Archive, UserCog, FolderKanban } from 'lucide-react';
+import { DraftingCompass, Code2, ContactRound, PackageSearch, ReceiptText, Boxes, Landmark, FileSpreadsheet, Split, Scale, FileSearch, FileText, Archive, UserCog, FolderKanban, UsersRound } from 'lucide-react';
 import { LogOut } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -53,6 +53,7 @@ export function AppLayout({ children }: LayoutProps) {
       isFolder: true,
       children: [
         { to: '/notaria/expedientes', label: 'Expedientes y procesos', icon: FolderKanban, roles: ['admin', 'notaria'] },
+        { to: '/notaria/sucesiones', label: 'Sucesiones', icon: UsersRound, roles: ['admin', 'notaria'] },
         { to: '/notaria/calendario', label: 'Calendario', icon: Calendar, roles: ['admin', 'notaria'] },
         { to: '/notaria', label: 'Formatos', icon: FileSearch, roles: ['admin', 'notaria'] },
         { to: '/notaria/busqueda-radicacion', label: 'Búsqueda de radicación', icon: FileText, roles: ['admin', 'notaria'] },
