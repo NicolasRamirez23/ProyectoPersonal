@@ -29,6 +29,10 @@ import { NotaryFormatsPage } from './pages/NotaryFormatsPage';
 import { NotarySearchOfficePage } from './pages/NotarySearchOfficePage';
 import { NotaryDocumentsPage } from './pages/NotaryDocumentsPage';
 import { NotaryUserPage } from './pages/NotaryUserPage';
+import { NotaryCasesPage } from './pages/NotaryCasesPage';
+import { NotaryCaseFormPage } from './pages/NotaryCaseFormPage';
+import { NotaryCaseDetailPage } from './pages/NotaryCaseDetailPage';
+import { NotaryCalendarPage } from './pages/NotaryCalendarPage';
 
 function AppShell() {
   return <AppLayout><Outlet /></AppLayout>;
@@ -57,6 +61,10 @@ export default function App() {
                 <Route path="/notaria" element={<NotaryFormatsPage />} />
                 <Route path="/notaria/busqueda-radicacion" element={<NotarySearchOfficePage />} />
                 <Route path="/notaria/documentos" element={<NotaryDocumentsPage />} />
+                <Route path="/notaria/expedientes" element={<NotaryCasesPage />} />
+                <Route path="/notaria/expedientes/nuevo" element={<NotaryCaseFormPage />} />
+                <Route path="/notaria/expedientes/:id" element={<NotaryCaseDetailPage />} />
+                <Route path="/notaria/calendario" element={<NotaryCalendarPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['admin', 'importaciones_lara']} />}>
                 <Route path="/importaciones-lara" element={<ImportacionesLaraListPage />} />
