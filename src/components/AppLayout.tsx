@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { NavLink, Link } from 'react-router-dom';
+import { NavLink, Link, useLocation } from 'react-router-dom';
 import { 
   House, 
   LayoutDashboard, 
@@ -27,6 +27,7 @@ interface LayoutProps {
 
 export function AppLayout({ children }: LayoutProps) {
   const { profile, signOut } = useAuth();
+  const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // 🚀 Estado para controlar cuáles subcarpetas están abiertas (por su label)
@@ -168,6 +169,9 @@ export function AppLayout({ children }: LayoutProps) {
             if (item.isFolder) {
               const isFolderOpen = !!openFolders[item.label];
               const FolderIcon = item.icon;
+              const hasActiveChild = item.children?.some((child) => child.to === '/notaria'
+                ? location.pathname === child.to
+                : location.pathname === child.to || location.pathname.startsWith(`${child.to}/`));
 
               return (
                 <div key={item.label} className="space-y-1">
@@ -175,7 +179,12 @@ export function AppLayout({ children }: LayoutProps) {
                   <button
                     type="button"
                     onClick={() => toggleFolder(item.label)}
-                    className="w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                    className={cn(
+                      "w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all font-medium",
+                      hasActiveChild
+                        ? "border-slate-700 bg-slate-800/90 text-slate-100 shadow-sm"
+                        : "border-transparent text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                    )}
                   >
                     <div className="flex items-center gap-3">
                       <FolderIcon className="h-5 w-5 shrink-0" />
@@ -195,7 +204,7 @@ export function AppLayout({ children }: LayoutProps) {
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.2, ease: "easeInOut" }}
-                        className="overflow-hidden pl-4 border-l border-slate-800/80 ml-6 space-y-1"
+                        className="relative ml-7 space-y-1 overflow-hidden border-l-2 border-slate-700/80 pb-1 pl-5 pt-1"
                       >
                         {item.children?.filter((child) => !child.roles || child.roles.includes(profile?.rol || 'arquitectura')).map((child) => {
                           const ChildIcon = child.icon;
@@ -203,15 +212,17 @@ export function AppLayout({ children }: LayoutProps) {
                             <NavLink
                               key={child.to}
                               to={child.to}
+                              end={child.to === '/notaria'}
                               onClick={() => setIsSidebarOpen(false)}
                               className={({ isActive }) => cn(
-                                "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm font-medium",
+                                "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all before:absolute before:-left-[22px] before:top-1/2 before:h-px before:w-4 before:bg-slate-700",
                                 isActive 
-                                  ? "bg-slate-800 text-blue-400 font-semibold" 
-                                  : "text-slate-500 hover:bg-slate-800/50 hover:text-slate-300"
+                                  ? "bg-blue-500/10 text-blue-400 font-semibold ring-1 ring-inset ring-blue-400/15 before:bg-blue-400 [&>span:first-child]:border-blue-400 [&>span:first-child]:bg-blue-400"
+                                  : "text-slate-500 hover:bg-slate-800/60 hover:text-slate-200"
                               )}
                             >
-                              <ChildIcon className="h-4 w-4 shrink-0" />
+                              <span className="absolute -left-[26px] top-1/2 h-2 w-2 -translate-y-1/2 rounded-full border-2 border-slate-700 bg-slate-900 transition-colors" />
+                              <ChildIcon className="h-4 w-4 shrink-0 opacity-80" />
                               <span>{child.label}</span>
                             </NavLink>
                           );
