@@ -35,7 +35,7 @@ const responseSchema = {
     datos: { type: 'OBJECT', properties: {
       nombre: { type: 'STRING' }, nombres: { type: 'STRING' }, apellidoPaterno: { type: 'STRING' }, apellidoMaterno: { type: 'STRING' },
       curp: { type: 'STRING' }, rfc: { type: 'STRING' }, domicilio: { type: 'STRING' }, fechaNacimiento: { type: 'STRING' }, lugarNacimiento: { type: 'STRING' }, sexo: { type: 'STRING' }, nacionalidad: { type: 'STRING' },
-      claveElector: { type: 'STRING' }, numeroDocumento: { type: 'STRING' }, seccion: { type: 'STRING' }, anioRegistro: { type: 'STRING' }, vigencia: { type: 'STRING' }, cic: { type: 'STRING' }, ocr: { type: 'STRING' },
+      claveElector: { type: 'STRING' }, numeroDocumento: { type: 'STRING' }, seccion: { type: 'STRING' }, anioRegistro: { type: 'STRING' }, vigencia: { type: 'STRING' }, idmex: { type: 'STRING' }, cic: { type: 'STRING' }, ocr: { type: 'STRING' },
       fechaRegistro: { type: 'STRING' }, oficialia: { type: 'STRING' }, libro: { type: 'STRING' }, numeroActa: { type: 'STRING' }, municipioRegistro: { type: 'STRING' }, entidadRegistro: { type: 'STRING' }, nombrePadre: { type: 'STRING' }, nombreMadre: { type: 'STRING' },
       fechaDefuncion: { type: 'STRING' }, horaDefuncion: { type: 'STRING' }, lugarDefuncion: { type: 'STRING' }, causaDefuncion: { type: 'STRING' }, estadoCivil: { type: 'STRING' }, conyuge: { type: 'STRING' }, declarante: { type: 'STRING' },
       codigoPostal: { type: 'STRING' }, regimenFiscal: { type: 'STRING' }, regimenesFiscales: { type: 'ARRAY', items: { type: 'STRING' } }, actividadesEconomicas: { type: 'ARRAY', items: { type: 'STRING' } }, idCif: { type: 'STRING' }, notario: { type: 'STRING' }, numeroNotaria: { type: 'STRING' }, numeroInstrumento: { type: 'STRING' }, fechaInstrumento: { type: 'STRING' },
@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
     const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${model}:generateContent`;
     const typeContext = document.tipo_indicado ? `El operador indicó que espera un documento de tipo: ${document.tipo_indicado}. Usa esa indicación como contexto, pero advierte si el contenido no corresponde.` : 'El operador solicitó detección automática del tipo.';
     const fieldsByType: Record<string, string> = {
-      INE: 'nombres, apellidoPaterno, apellidoMaterno, curp, fechaNacimiento, sexo, domicilio, claveElector, seccion, anioRegistro, vigencia, cic y ocr',
+      INE: 'nombres, apellidoPaterno, apellidoMaterno, curp, fechaNacimiento, sexo, domicilio, claveElector, seccion, anioRegistro, vigencia, la línea IDMEX completa en idmex, cic y ocr',
       CURP: 'nombre, curp, fechaNacimiento, sexo, lugarNacimiento y nacionalidad',
       CSF: 'nombres, apellidoPaterno, apellidoMaterno, curp, rfc, idCif, codigoPostal, domicilio, todas las actividades económicas en actividadesEconomicas, todos los regímenes con su fecha de inicio en regimenesFiscales y el régimen con fecha de inicio más reciente en regimenFiscal',
       'Acta de nacimiento': 'nombre, curp, fechaNacimiento, lugarNacimiento, sexo, fechaRegistro, oficialia, libro, numeroActa, municipioRegistro, entidadRegistro, nombrePadre y nombreMadre',

@@ -47,11 +47,11 @@ async function pdfText(file: File, progress?: (message: string) => void) {
       if (score(best) < 80) {
         progress?.(`Buscando credenciales dentro de la página ${pageNumber}…`);
         const focused = window.document.createElement('canvas');
-        focused.width = canvas.width; focused.height = Math.round(canvas.height * 0.68);
+        focused.width = canvas.width; focused.height = Math.round(canvas.height * 0.52);
         const focusedContext = focused.getContext('2d');
         if (focusedContext) {
           focusedContext.filter = 'grayscale(1) contrast(1.9)';
-          focusedContext.drawImage(canvas, 0, Math.round(canvas.height * 0.32), canvas.width, focused.height, 0, 0, focused.width, focused.height);
+          focusedContext.drawImage(canvas, 0, Math.round(canvas.height * 0.45), canvas.width, focused.height, 0, 0, focused.width, focused.height);
           const focusedText = (await worker.recognize(focused)).data.text;
           if (score(focusedText) > 0) best = `${best}\n${focusedText}`;
         }
@@ -179,7 +179,8 @@ function ineData(text: string) {
     : '';
   if (!domicilio) domicilio = clean(text.match(/D[O0]MICILI[O0]\s*[:\-]?\s*([\s\S]{8,180}?)(?=CLAVE\s+DE\s+ELECTOR)/i)?.[1] || '').replace(/\s*,\s*/g, ', ');
   const compactMrz = upper.replace(/[ \t]/g, '').replace(/O/g, '0');
-  const mrzNumbers = compactMrz.match(/IDMEX(\d{9})\d?<+(\d{13})/);
+  const flatMrz = upper.replace(/\s/g, '').replace(/O/g, '0');
+  const mrzNumbers = flatMrz.match(/IDMEX(\d{9})\d?<+(\d{13})/);
   const ocr = mrzNumbers?.[2] || '';
   const cic = mrzNumbers?.[1] || '';
   const seccion = upper.match(/SECCI[O0]N\s*[:\-]?\s*(\d{3,5})/)?.[1] || ocr.slice(0, 4);
@@ -189,8 +190,9 @@ function ineData(text: string) {
   const vigencia = vigenciaMatch ? `${vigenciaMatch[1]}-${vigenciaMatch[2]}` : '';
   const mrzIdentity = compactMrz.match(/(?:^|\n)(\d{6})\d([HM])/);
   const mrzBirth = mrzIdentity ? `${Number(mrzIdentity[1].slice(0, 2)) <= new Date().getFullYear() % 100 ? '20' : '19'}${mrzIdentity[1].slice(0, 2)}-${mrzIdentity[1].slice(2, 4)}-${mrzIdentity[1].slice(4, 6)}` : '';
-  const numeroDocumento = compactMrz.match(/IDMEX([A-Z0-9]{6,20})</)?.[1] || '';
-  return { nombres, apellidoPaterno, apellidoMaterno, nombre: clean([nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(' ')), domicilio, seccion, anioRegistro, vigencia, sexo: mrzIdentity?.[2] || '', fechaNacimiento: mrzBirth, numeroDocumento, cic, ocr };
+  const idmex = mrzNumbers?.[0] || flatMrz.match(/IDMEX[A-Z0-9<]{12,40}/)?.[0] || '';
+  const numeroDocumento = flatMrz.match(/IDMEX([A-Z0-9]{6,20})</)?.[1] || '';
+  return { nombres, apellidoPaterno, apellidoMaterno, nombre: clean([nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(' ')), domicilio, seccion, anioRegistro, vigencia, sexo: mrzIdentity?.[2] || '', fechaNacimiento: mrzBirth, numeroDocumento, idmex, cic, ocr };
 }
 
 function extract(text: string): NotaryExtractedData {

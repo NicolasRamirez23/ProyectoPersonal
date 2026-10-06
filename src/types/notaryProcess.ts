@@ -25,7 +25,7 @@ export interface NotaryExtractedData {
   nombre?: string; nombres?: string; apellidoPaterno?: string; apellidoMaterno?: string; curp?: string; rfc?: string;
   domicilio?: string; fechaNacimiento?: string; lugarNacimiento?: string; sexo?: string; nacionalidad?: string;
   claveElector?: string; numeroDocumento?: string; seccion?: string; anioRegistro?: string; vigencia?: string;
-  cic?: string; ocr?: string; fechaRegistro?: string; oficialia?: string; libro?: string; numeroActa?: string;
+  cic?: string; ocr?: string; idmex?: string; fechaRegistro?: string; oficialia?: string; libro?: string; numeroActa?: string;
   municipioRegistro?: string; entidadRegistro?: string; nombrePadre?: string; nombreMadre?: string;
   fechaDefuncion?: string; horaDefuncion?: string; lugarDefuncion?: string; causaDefuncion?: string;
   estadoCivil?: string; conyuge?: string; declarante?: string; codigoPostal?: string; regimenFiscal?: string;
