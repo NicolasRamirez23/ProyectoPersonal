@@ -27,6 +27,7 @@ export interface NotaryInboxDocument {
   fileName: string; path: string; mimeType: string; size: number; hash: string; detectedType: string;
   confirmedType: string; detectedRole: string; confirmedRole: string; status: NotaryDocumentStatus;
   confidence: number; extractedData: NotaryExtractedData; extractedText: string; notes: string;
+  analyzedWithAi?: boolean; aiProvider?: string; aiModel?: string; aiAnalyzedAt?: string;
 }
 
 export type SuccessionRoute = 'testamentaria' | 'intestamentaria';

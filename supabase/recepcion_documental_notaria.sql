@@ -35,11 +35,19 @@ create table if not exists public.notaria_documentos_bitacora (
   id bigint generated always as identity primary key,
   created_at timestamptz not null default now(),
   documento_id uuid not null references public.notaria_documentos_expediente(id) on delete cascade,
-  accion text not null check (accion in ('carga','lectura_local','revision','confirmacion','rechazo','descarga','sustitucion')),
+  accion text not null check (accion in ('carga','lectura_local','analisis_ia','revision','confirmacion','rechazo','descarga','sustitucion')),
   detalle jsonb not null default '{}'::jsonb,
   usuario_id uuid not null default auth.uid() references auth.users(id)
 );
+alter table public.notaria_documentos_bitacora drop constraint if exists notaria_documentos_bitacora_accion_check;
+alter table public.notaria_documentos_bitacora add constraint notaria_documentos_bitacora_accion_check
+  check (accion in ('carga','lectura_local','analisis_ia','revision','confirmacion','rechazo','descarga','sustitucion'));
 create index if not exists notaria_docs_bitacora_documento_idx on public.notaria_documentos_bitacora(documento_id, created_at desc);
+
+alter table public.notaria_documentos_expediente add column if not exists analizado_con_ia boolean not null default false;
+alter table public.notaria_documentos_expediente add column if not exists proveedor_ia text not null default '';
+alter table public.notaria_documentos_expediente add column if not exists modelo_ia text not null default '';
+alter table public.notaria_documentos_expediente add column if not exists analizado_ia_el timestamptz;
 
 alter table public.notaria_documentos_expediente enable row level security;
 alter table public.notaria_documentos_bitacora enable row level security;

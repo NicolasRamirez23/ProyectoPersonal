@@ -8,6 +8,7 @@ const fromRow = (row: any): NotaryInboxDocument => ({
   fileName: row.nombre_archivo, path: row.ruta, mimeType: row.mime_type, size: Number(row.tamano_bytes), hash: row.hash_sha256,
   detectedType: row.tipo_detectado, confirmedType: row.tipo_confirmado || '', detectedRole: row.rol_detectado || '', confirmedRole: row.rol_confirmado || '', status: row.estado,
   confidence: Number(row.confianza || 0), extractedData: row.datos_extraidos || {}, extractedText: row.texto_extraido || '', notes: row.notas || '',
+  analyzedWithAi: !!row.analizado_con_ia, aiProvider: row.proveedor_ia || '', aiModel: row.modelo_ia || '', aiAnalyzedAt: row.analizado_ia_el || undefined,
 });
 async function audit(documentId: string, action: string, detail: Record<string, unknown> = {}) {
   const { error } = await supabase.from('notaria_documentos_bitacora').insert({ documento_id: documentId, accion: action, detalle: detail });
@@ -50,6 +51,12 @@ export const notaryInboxApi = {
     await audit(data.id, 'carga', { nombre: file.name, hash });
     await audit(data.id, 'lectura_local', { tipo: analysis.type, confianza: analysis.confidence });
     return fromRow(data);
+  },
+  async analyzeWithAi(documentId: string) {
+    const { data, error } = await supabase.functions.invoke('analyze-notary-document', { body: { documentId } });
+    if (error) throw new Error(error.message);
+    if (!data?.ok) throw new Error(data?.message || 'No se pudo analizar el documento con IA.');
+    return data;
   },
   async review(id: string, input: { status: NotaryDocumentStatus; type: string; role: string; data: NotaryExtractedData; notes: string; clientId?: string }) {
     const { data: user } = await supabase.auth.getUser();
