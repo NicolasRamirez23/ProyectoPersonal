@@ -9,7 +9,7 @@ const clean = (value: string) => value.replace(/\s+/g, ' ').trim();
 const normalized = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
 
 async function renderPdfPage(page: any) {
-  const viewport = page.getViewport({ scale: 1.8 });
+  const viewport = page.getViewport({ scale: 3 });
   const canvas = window.document.createElement('canvas');
   canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
   const context = canvas.getContext('2d');
@@ -35,10 +35,30 @@ async function pdfText(file: File, progress?: (message: string) => void) {
     const recognized: string[] = [];
     for (let pageNumber = 1; pageNumber <= Math.min(pdf.numPages, 5); pageNumber += 1) {
       progress?.(`Aplicando OCR local a la página ${pageNumber}…`);
-      const result = await worker.recognize(await renderPdfPage(await pdf.getPage(pageNumber)));
-      recognized.push(result.data.text);
+      const canvas = await renderPdfPage(await pdf.getPage(pageNumber));
+      const original = (await worker.recognize(canvas)).data.text;
+      const enhanced = window.document.createElement('canvas');
+      enhanced.width = canvas.width; enhanced.height = canvas.height;
+      const context = enhanced.getContext('2d');
+      if (context) { context.filter = 'grayscale(1) contrast(1.8)'; context.drawImage(canvas, 0, 0); }
+      const contrasted = context ? (await worker.recognize(enhanced)).data.text : '';
+      const score = (value: string) => ['NOMBRE','DOMICILIO','CLAVE DE ELECTOR','CURP','FECHA DE NACIMIENTO','VIGENCIA','IDMEX'].filter((label) => normalized(value).includes(label)).length * 10 + (normalized(value).match(/\b[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d\b/) ? 30 : 0);
+      let best = score(contrasted) > score(original) ? contrasted : original;
+      if (score(best) < 80) {
+        progress?.(`Buscando credenciales dentro de la página ${pageNumber}…`);
+        const focused = window.document.createElement('canvas');
+        focused.width = canvas.width; focused.height = Math.round(canvas.height * 0.68);
+        const focusedContext = focused.getContext('2d');
+        if (focusedContext) {
+          focusedContext.filter = 'grayscale(1) contrast(1.9)';
+          focusedContext.drawImage(canvas, 0, Math.round(canvas.height * 0.32), canvas.width, focused.height, 0, 0, focused.width, focused.height);
+          const focusedText = (await worker.recognize(focused)).data.text;
+          if (score(focusedText) > score(best)) best = focusedText;
+        }
+      }
+      recognized.push(best);
     }
-    return clean(recognized.join('\n'));
+    return recognized.join('\n').split(/\r?\n/).map(clean).filter(Boolean).join('\n');
   } finally { await worker.terminate(); }
 }
 
@@ -141,20 +161,24 @@ function ineData(text: string) {
       .map((line) => clean(line.replace(/\bSEXO\s*[HM]?\b.*$/i, '')))
       .filter(Boolean)
     : [];
-  const apellidoPaterno = nameLines[0] || '';
-  const apellidoMaterno = nameLines[1] || '';
-  const nombres = nameLines.slice(2).join(' ');
+  const upper = normalized(text);
+  const mrzName = upper.match(/(?:^|\n)([A-Z]+)<([A-Z]+)<<([A-Z<]+)(?:\n|$)/);
+  const apellidoPaterno = nameLines[0] || mrzName?.[1] || '';
+  const apellidoMaterno = nameLines[1] || mrzName?.[2] || '';
+  const nombres = nameLines.slice(2).join(' ') || mrzName?.[3]?.replace(/<+/g, ' ') || '';
   const addressStart = end;
   const addressEnd = lines.findIndex((line, index) => index > addressStart && /CLAVE DE ELECTOR/i.test(line));
   const firstAddressLine = addressStart >= 0 ? clean(lines[addressStart].replace(/^DOMICILIO\s*[:\-]?\s*/i, '')) : '';
   const domicilio = addressStart >= 0
     ? [firstAddressLine, ...lines.slice(addressStart + 1, addressEnd > addressStart ? addressEnd : addressStart + 4)].filter(Boolean).join(', ')
     : '';
-  const upper = normalized(text);
   const seccion = upper.match(/SECCI[OÓ]N\s*[:\-]?\s*(\d{3,5})/)?.[1] || '';
   const anioRegistro = upper.match(/A[NÑ]O DE REGISTRO\s*[:\-]?\s*([0-9 ]{4,9})/)?.[1]?.trim() || '';
   const vigencia = upper.match(/VIGENCIA\s*[:\-]?\s*([0-9]{4}\s*[-–]\s*[0-9]{4})/)?.[1]?.replace(/\s/g, '') || '';
-  return { nombres, apellidoPaterno, apellidoMaterno, nombre: clean([nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(' ')), domicilio, seccion, anioRegistro, vigencia };
+  const mrzIdentity = upper.match(/(?:^|\n)(\d{6})\d([HM])/);
+  const mrzBirth = mrzIdentity ? `${Number(mrzIdentity[1].slice(0, 2)) <= new Date().getFullYear() % 100 ? '20' : '19'}${mrzIdentity[1].slice(0, 2)}-${mrzIdentity[1].slice(2, 4)}-${mrzIdentity[1].slice(4, 6)}` : '';
+  const numeroDocumento = upper.match(/IDMEX([A-Z0-9]{6,20})</)?.[1] || '';
+  return { nombres, apellidoPaterno, apellidoMaterno, nombre: clean([nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(' ')), domicilio, seccion, anioRegistro, vigencia, sexo: mrzIdentity?.[2] || '', fechaNacimiento: mrzBirth, numeroDocumento };
 }
 
 function extract(text: string): NotaryExtractedData {
@@ -170,7 +194,7 @@ function extract(text: string): NotaryExtractedData {
   const ine = isIne ? ineData(text) : { nombre: '', domicilio: '' };
   const nameMatch = text.match(/(?:NOMBRE(?:\s*\(S\))?|NOMBRE COMPLETO)\s*[:\-]?\s*([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ\s]{5,80})/i);
   const addressMatch = text.match(/(?:DOMICILIO|DOMICILIO FISCAL)\s*[:\-]?\s*([^\n]{8,160})/i);
-  return { ...ine, ...csf, nombre: csf.nombre || ine.nombre || clean(nameMatch?.[1] || ''), curp, rfc, domicilio: csf.domicilio || ine.domicilio || clean(addressMatch?.[1] || ''), fechaNacimiento: birth, claveElector };
+  return { ...ine, ...csf, nombre: csf.nombre || ine.nombre || clean(nameMatch?.[1] || ''), curp, rfc, domicilio: csf.domicilio || ine.domicilio || clean(addressMatch?.[1] || ''), fechaNacimiento: birth || ine.fechaNacimiento || '', claveElector };
 }
 
 function detectRole(text: string) {
