@@ -47,7 +47,14 @@ export const notaryInboxApi = {
     const path = `${caseData.id}/recepcion/${crypto.randomUUID()}-${safeName}`;
     const upload = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
     if (upload.error) throw new Error(upload.error.message);
-    const { data, error } = await supabase.from('notaria_documentos_expediente').insert({ expediente_id: caseData.id, cliente_id: caseData.clientId, documento_anterior_id: duplicate?.id || null, nombre_archivo: file.name, ruta: path, mime_type: file.type, tamano_bytes: file.size, hash_sha256: hash, tipo_indicado: expectedType, tipo_detectado: analysis.type, rol_detectado: analysis.role, estado: 'por_revisar', confianza: analysis.confidence, datos_extraidos: analysis.data, texto_extraido: analysis.text.slice(0, 100000) }).select('*, notaria_expedientes(folio,titulo)').single();
+    const payload = { expediente_id: caseData.id, cliente_id: caseData.clientId, documento_anterior_id: duplicate?.id || null, nombre_archivo: file.name, ruta: path, mime_type: file.type, tamano_bytes: file.size, hash_sha256: hash, tipo_indicado: expectedType, tipo_detectado: analysis.type, rol_detectado: analysis.role, estado: 'por_revisar', confianza: analysis.confidence, datos_extraidos: analysis.data, texto_extraido: analysis.text.slice(0, 100000) };
+    let result = await supabase.from('notaria_documentos_expediente').insert(payload).select('*, notaria_expedientes(folio,titulo)').single();
+    if (result.error?.message.includes('tipo_indicado')) {
+      const compatiblePayload: Record<string, unknown> = { ...payload };
+      delete compatiblePayload.tipo_indicado;
+      result = await supabase.from('notaria_documentos_expediente').insert(compatiblePayload).select('*, notaria_expedientes(folio,titulo)').single();
+    }
+    const { data, error } = result;
     if (error) { await supabase.storage.from(BUCKET).remove([path]); throw new Error(error.message); }
     await audit(data.id, 'carga', { nombre: file.name, hash });
     await audit(data.id, 'lectura_local', { tipo: analysis.type, confianza: analysis.confidence });
