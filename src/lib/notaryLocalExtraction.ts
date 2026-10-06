@@ -53,7 +53,7 @@ async function pdfText(file: File, progress?: (message: string) => void) {
           focusedContext.filter = 'grayscale(1) contrast(1.9)';
           focusedContext.drawImage(canvas, 0, Math.round(canvas.height * 0.32), canvas.width, focused.height, 0, 0, focused.width, focused.height);
           const focusedText = (await worker.recognize(focused)).data.text;
-          if (score(focusedText) > score(best)) best = focusedText;
+          if (score(focusedText) > 0) best = `${best}\n${focusedText}`;
         }
       }
       recognized.push(best);
@@ -152,33 +152,45 @@ function csfData(text: string) {
 
 function ineData(text: string) {
   const lines = text.split(/\r?\n/).map(clean).filter(Boolean);
-  const start = lines.findIndex((line) => /^NOMBRE\b/i.test(line));
-  const end = lines.findIndex((line, index) => index > start && /^DOMICILIO\b/i.test(line));
+  const start = lines.findIndex((line) => /^N[O0]MBRE\b/i.test(line));
+  const end = lines.findIndex((line, index) => index > start && /^D[O0]MICILI[O0]\b/i.test(line));
   const firstNameLine = start >= 0 ? clean(lines[start].replace(/^NOMBRE\s*[:\-]?\s*/i, '')) : '';
-  const nameLines = start >= 0
+  let nameLines = start >= 0
     ? [firstNameLine, ...lines.slice(start + 1, end > start ? end : start + 4)]
       .filter((line) => line && !/^(SEXO\b|H$|M$|DOMICILIO\b)/i.test(line))
       .map((line) => clean(line.replace(/\bSEXO\s*[HM]?\b.*$/i, '')))
       .filter(Boolean)
     : [];
+  if (nameLines.length < 3) {
+    const nameBlock = text.match(/N[O0]MBRE\s*[:\-]?\s*([\s\S]{5,100}?)(?=D[O0]MICILI[O0])/i)?.[1] || '';
+    const fallback = nameBlock.split(/\r?\n/).map(clean).filter((line) => line && !/SEXO/i);
+    if (fallback.length >= 3) nameLines = fallback.slice(0, 4);
+  }
   const upper = normalized(text);
-  const mrzName = upper.match(/(?:^|\n)([A-Z]+)<([A-Z]+)<<([A-Z<]+)(?:\n|$)/);
+  const mrzName = upper.match(/(?:^|\n)\s*([A-Z]+)<([A-Z]+)<<([A-Z<]+)(?:\n|$)/);
   const apellidoPaterno = nameLines[0] || mrzName?.[1] || '';
   const apellidoMaterno = nameLines[1] || mrzName?.[2] || '';
   const nombres = nameLines.slice(2).join(' ') || mrzName?.[3]?.replace(/<+/g, ' ') || '';
-  const addressStart = end;
+  const addressStart = end >= 0 ? end : lines.findIndex((line) => /^D[O0]MICILI[O0]\b/i.test(line));
   const addressEnd = lines.findIndex((line, index) => index > addressStart && /CLAVE DE ELECTOR/i.test(line));
   const firstAddressLine = addressStart >= 0 ? clean(lines[addressStart].replace(/^DOMICILIO\s*[:\-]?\s*/i, '')) : '';
-  const domicilio = addressStart >= 0
+  let domicilio = addressStart >= 0
     ? [firstAddressLine, ...lines.slice(addressStart + 1, addressEnd > addressStart ? addressEnd : addressStart + 4)].filter(Boolean).join(', ')
     : '';
-  const seccion = upper.match(/SECCI[OÓ]N\s*[:\-]?\s*(\d{3,5})/)?.[1] || '';
-  const anioRegistro = upper.match(/A[NÑ]O DE REGISTRO\s*[:\-]?\s*([0-9 ]{4,9})/)?.[1]?.trim() || '';
-  const vigencia = upper.match(/VIGENCIA\s*[:\-]?\s*([0-9]{4}\s*[-–]\s*[0-9]{4})/)?.[1]?.replace(/\s/g, '') || '';
-  const mrzIdentity = upper.match(/(?:^|\n)(\d{6})\d([HM])/);
+  if (!domicilio) domicilio = clean(text.match(/D[O0]MICILI[O0]\s*[:\-]?\s*([\s\S]{8,180}?)(?=CLAVE\s+DE\s+ELECTOR)/i)?.[1] || '').replace(/\s*,\s*/g, ', ');
+  const compactMrz = upper.replace(/[ \t]/g, '').replace(/O/g, '0');
+  const mrzNumbers = compactMrz.match(/IDMEX(\d{9})\d?<+(\d{13})/);
+  const ocr = mrzNumbers?.[2] || '';
+  const cic = mrzNumbers?.[1] || '';
+  const seccion = upper.match(/SECCI[O0]N\s*[:\-]?\s*(\d{3,5})/)?.[1] || ocr.slice(0, 4);
+  const anioMatch = upper.match(/A[NÑ]O\s+DE\s+REGISTR[O0]\s*[:\-]?\s*(\d{4})(?:\s+(\d{2}))?/);
+  const anioRegistro = anioMatch ? [anioMatch[1], anioMatch[2]].filter(Boolean).join(' ') : '';
+  const vigenciaMatch = upper.match(/VIGENCIA\s*[:\-]?\s*(\d{4})\s*[-–]?\s*(\d{4})/);
+  const vigencia = vigenciaMatch ? `${vigenciaMatch[1]}-${vigenciaMatch[2]}` : '';
+  const mrzIdentity = compactMrz.match(/(?:^|\n)(\d{6})\d([HM])/);
   const mrzBirth = mrzIdentity ? `${Number(mrzIdentity[1].slice(0, 2)) <= new Date().getFullYear() % 100 ? '20' : '19'}${mrzIdentity[1].slice(0, 2)}-${mrzIdentity[1].slice(2, 4)}-${mrzIdentity[1].slice(4, 6)}` : '';
-  const numeroDocumento = upper.match(/IDMEX([A-Z0-9]{6,20})</)?.[1] || '';
-  return { nombres, apellidoPaterno, apellidoMaterno, nombre: clean([nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(' ')), domicilio, seccion, anioRegistro, vigencia, sexo: mrzIdentity?.[2] || '', fechaNacimiento: mrzBirth, numeroDocumento };
+  const numeroDocumento = compactMrz.match(/IDMEX([A-Z0-9]{6,20})</)?.[1] || '';
+  return { nombres, apellidoPaterno, apellidoMaterno, nombre: clean([nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(' ')), domicilio, seccion, anioRegistro, vigencia, sexo: mrzIdentity?.[2] || '', fechaNacimiento: mrzBirth, numeroDocumento, cic, ocr };
 }
 
 function extract(text: string): NotaryExtractedData {
@@ -194,7 +206,7 @@ function extract(text: string): NotaryExtractedData {
   const ine = isIne ? ineData(text) : { nombre: '', domicilio: '' };
   const nameMatch = text.match(/(?:NOMBRE(?:\s*\(S\))?|NOMBRE COMPLETO)\s*[:\-]?\s*([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ\s]{5,80})/i);
   const addressMatch = text.match(/(?:DOMICILIO|DOMICILIO FISCAL)\s*[:\-]?\s*([^\n]{8,160})/i);
-  return { ...ine, ...csf, nombre: csf.nombre || ine.nombre || clean(nameMatch?.[1] || ''), curp, rfc, domicilio: csf.domicilio || ine.domicilio || clean(addressMatch?.[1] || ''), fechaNacimiento: birth || ine.fechaNacimiento || '', claveElector };
+  return { ...ine, ...csf, nombre: csf.nombre || ine.nombre || clean(nameMatch?.[1] || ''), curp, rfc, domicilio: csf.domicilio || ine.domicilio || clean(addressMatch?.[1] || ''), fechaNacimiento: birth || ine.fechaNacimiento || '', sexo: ine.sexo || (curp ? curp.charAt(10) : ''), claveElector };
 }
 
 function detectRole(text: string) {
