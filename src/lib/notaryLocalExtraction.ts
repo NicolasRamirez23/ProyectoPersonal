@@ -78,6 +78,31 @@ function classify(text: string, fileName: string) {
   return match?.score ? { type: match.type, confidence: Math.min(98, 55 + (match.score / match.total) * 40) } : { type: 'Otro', confidence: 25 };
 }
 
+function between(text: string, label: string, nextLabels: string[]) {
+  const next = nextLabels.length ? `(?=${nextLabels.join('|')}|$)` : '$';
+  return clean(text.match(new RegExp(`${label}\\s*:?\\s*(.*?)\\s*${next}`, 'i'))?.[1] || '');
+}
+
+function csfData(text: string) {
+  const nombres = between(text, 'Nombre\\s*\\(s\\)', ['Primer Apellido']);
+  const paterno = between(text, 'Primer Apellido', ['Segundo Apellido']);
+  const materno = between(text, 'Segundo Apellido', ['Fecha inicio de operaciones']);
+  const postalCode = between(text, 'C[oó]digo Postal', ['Tipo de Vialidad']).match(/\d{5}/)?.[0] || '';
+  const streetType = between(text, 'Tipo de Vialidad', ['Nombre de Vialidad']);
+  const street = between(text, 'Nombre de Vialidad', ['N[uú]mero Exterior']);
+  const exterior = between(text, 'N[uú]mero Exterior', ['N[uú]mero Interior', 'Nombre de la Colonia']);
+  const interior = between(text, 'N[uú]mero Interior', ['Nombre de la Colonia']);
+  const colony = between(text, 'Nombre de la Colonia', ['Nombre de la Localidad']);
+  const locality = between(text, 'Nombre de la Localidad', ['Nombre del Municipio', 'Nombre de Municipio', 'Municipio o Demarcaci[oó]n Territorial']);
+  const municipality = between(text, '(?:Nombre del Municipio|Nombre de Municipio|Municipio o Demarcaci[oó]n Territorial)', ['Nombre de la Entidad Federativa', 'Entidad Federativa']);
+  const state = between(text, '(?:Nombre de la Entidad Federativa|Entidad Federativa)', ['Entre Calle', 'Y Calle', 'Actividades Econ[oó]micas']);
+  const domicilio = clean([
+    streetType, street, exterior && `No. ${exterior}`, interior && interior !== exterior ? `Int. ${interior}` : '',
+    colony && `Col. ${colony}`, locality, municipality && municipality !== locality ? municipality : '', state, postalCode && `C.P. ${postalCode}`,
+  ].filter(Boolean).join(', '));
+  return { nombre: clean([nombres, paterno, materno].filter(Boolean).join(' ')), domicilio };
+}
+
 function extract(text: string): NotaryExtractedData {
   const upper = normalized(text);
   const curp = upper.match(/\b[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d\b/)?.[0] || '';
@@ -85,9 +110,11 @@ function extract(text: string): NotaryExtractedData {
   const claveElector = upper.match(/\b[A-Z]{6}\d{8}[HM]\d{3}\b/)?.[0] || '';
   const century = curp && Number(curp.slice(4, 6)) <= new Date().getFullYear() % 100 ? '20' : '19';
   const birth = curp ? `${century}${curp.slice(4, 6)}-${curp.slice(6, 8)}-${curp.slice(8, 10)}` : '';
+  const isCsf = upper.includes('CONSTANCIA DE SITUACION FISCAL') || upper.includes('DATOS DEL DOMICILIO REGISTRADO');
+  const csf = isCsf ? csfData(text) : { nombre: '', domicilio: '' };
   const nameMatch = text.match(/(?:NOMBRE(?:\s*\(S\))?|NOMBRE COMPLETO)\s*[:\-]?\s*([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ\s]{5,80})/i);
   const addressMatch = text.match(/(?:DOMICILIO|DOMICILIO FISCAL)\s*[:\-]?\s*([^\n]{8,160})/i);
-  return { nombre: clean(nameMatch?.[1] || ''), curp, rfc, domicilio: clean(addressMatch?.[1] || ''), fechaNacimiento: birth, claveElector };
+  return { nombre: csf.nombre || clean(nameMatch?.[1] || ''), curp, rfc, domicilio: csf.domicilio || clean(addressMatch?.[1] || ''), fechaNacimiento: birth, claveElector };
 }
 
 function detectRole(text: string) {
@@ -107,12 +134,12 @@ export async function sha256(file: File) {
   return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-export async function analyzeNotaryDocument(file: File, progress?: (message: string) => void): Promise<LocalDocumentAnalysis> {
+export async function analyzeNotaryDocument(file: File, progress?: (message: string) => void, expectedType = ''): Promise<LocalDocumentAnalysis> {
   const extension = file.name.split('.').pop()?.toLowerCase();
   let text = '';
   if (file.type === 'application/pdf' || extension === 'pdf') { progress?.('Leyendo texto del PDF localmente…'); text = await pdfText(file, progress); }
   else if (file.type.startsWith('image/')) text = await ocrImage(file, progress);
   else if (extension === 'docx') { progress?.('Leyendo el documento Word localmente…'); text = await docxText(file); }
-  const classification = classify(text, file.name);
+  const classification = expectedType ? { type: expectedType, confidence: 70 } : classify(text, file.name);
   return { text, type: classification.type, role: detectRole(text), confidence: classification.confidence, data: extract(text) };
 }

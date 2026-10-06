@@ -12,6 +12,7 @@ create table if not exists public.notaria_documentos_expediente (
   mime_type text not null,
   tamano_bytes bigint not null check (tamano_bytes > 0 and tamano_bytes <= 15728640),
   hash_sha256 text not null,
+  tipo_indicado text not null default '',
   tipo_detectado text not null default 'Otro',
   tipo_confirmado text not null default '',
   rol_detectado text not null default '',
@@ -48,6 +49,7 @@ alter table public.notaria_documentos_expediente add column if not exists analiz
 alter table public.notaria_documentos_expediente add column if not exists proveedor_ia text not null default '';
 alter table public.notaria_documentos_expediente add column if not exists modelo_ia text not null default '';
 alter table public.notaria_documentos_expediente add column if not exists analizado_ia_el timestamptz;
+alter table public.notaria_documentos_expediente add column if not exists tipo_indicado text not null default '';
 
 alter table public.notaria_documentos_expediente enable row level security;
 alter table public.notaria_documentos_bitacora enable row level security;

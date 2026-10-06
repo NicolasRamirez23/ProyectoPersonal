@@ -25,6 +25,7 @@ export interface NotaryExtractedData { nombre?: string; curp?: string; rfc?: str
 export interface NotaryInboxDocument {
   id: string; createdAt: string; caseId: string; caseFolio: string; caseTitle: string; clientId?: string;
   fileName: string; path: string; mimeType: string; size: number; hash: string; detectedType: string;
+  indicatedType?: string;
   confirmedType: string; detectedRole: string; confirmedRole: string; status: NotaryDocumentStatus;
   confidence: number; extractedData: NotaryExtractedData; extractedText: string; notes: string;
   analyzedWithAi?: boolean; aiProvider?: string; aiModel?: string; aiAnalyzedAt?: string;

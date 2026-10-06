@@ -6,6 +6,7 @@ const BUCKET = 'expedientes-notaria';
 const fromRow = (row: any): NotaryInboxDocument => ({
   id: row.id, createdAt: row.created_at, caseId: row.expediente_id, caseFolio: row.notaria_expedientes?.folio || '', caseTitle: row.notaria_expedientes?.titulo || '', clientId: row.cliente_id || undefined,
   fileName: row.nombre_archivo, path: row.ruta, mimeType: row.mime_type, size: Number(row.tamano_bytes), hash: row.hash_sha256,
+  indicatedType: row.tipo_indicado || '',
   detectedType: row.tipo_detectado, confirmedType: row.tipo_confirmado || '', detectedRole: row.rol_detectado || '', confirmedRole: row.rol_confirmado || '', status: row.estado,
   confidence: Number(row.confianza || 0), extractedData: row.datos_extraidos || {}, extractedText: row.texto_extraido || '', notes: row.notas || '',
   analyzedWithAi: !!row.analizado_con_ia, aiProvider: row.proveedor_ia || '', aiModel: row.modelo_ia || '', aiAnalyzedAt: row.analizado_ia_el || undefined,
@@ -31,25 +32,26 @@ export const notaryInboxApi = {
     const { data: rows, error } = await supabase.from('notaria_clientes').select('id, curp, rfc, nombres, apellido_paterno, apellido_materno, domicilio').or(filters).limit(5);
     if (error) throw new Error(error.message); return rows || [];
   },
-  async upload(caseData: { id: string; clientId: string }, file: File, progress?: (message: string) => void) {
+  async upload(caseData: { id: string; clientId: string }, file: File, expectedType = '', progress?: (message: string) => void) {
     if (file.size > 15 * 1024 * 1024) throw new Error(`${file.name}: supera el límite de 15 MB.`);
     const allowed = ['application/pdf','image/jpeg','image/png','image/webp','application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
     if (!allowed.includes(file.type)) throw new Error(`${file.name}: tipo de archivo no permitido.`);
     progress?.('Comprobando que no esté duplicado…');
     const hash = await sha256(file);
-    const { data: duplicate, error: duplicateError } = await supabase.from('notaria_documentos_expediente').select('id, nombre_archivo').eq('hash_sha256', hash).maybeSingle();
+    const { data: duplicate, error: duplicateError } = await supabase.from('notaria_documentos_expediente').select('id, nombre_archivo, estado').eq('expediente_id', caseData.id).eq('hash_sha256', hash).order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (duplicateError) throw new Error(duplicateError.message);
-    if (duplicate) throw new Error(`${file.name}: ya existe como ${duplicate.nombre_archivo}.`);
-    const analysis = await analyzeNotaryDocument(file, progress);
+    if (duplicate && duplicate.estado !== 'rechazado') throw new Error(`${file.name}: ya existe como ${duplicate.nombre_archivo}. Rechaza la versión anterior si necesitas sustituirla.`);
+    const analysis = await analyzeNotaryDocument(file, progress, expectedType);
     progress?.('Guardando original en el expediente privado…');
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '-');
     const path = `${caseData.id}/recepcion/${crypto.randomUUID()}-${safeName}`;
     const upload = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
     if (upload.error) throw new Error(upload.error.message);
-    const { data, error } = await supabase.from('notaria_documentos_expediente').insert({ expediente_id: caseData.id, cliente_id: caseData.clientId, nombre_archivo: file.name, ruta: path, mime_type: file.type, tamano_bytes: file.size, hash_sha256: hash, tipo_detectado: analysis.type, rol_detectado: analysis.role, estado: 'por_revisar', confianza: analysis.confidence, datos_extraidos: analysis.data, texto_extraido: analysis.text.slice(0, 100000) }).select('*, notaria_expedientes(folio,titulo)').single();
+    const { data, error } = await supabase.from('notaria_documentos_expediente').insert({ expediente_id: caseData.id, cliente_id: caseData.clientId, documento_anterior_id: duplicate?.id || null, nombre_archivo: file.name, ruta: path, mime_type: file.type, tamano_bytes: file.size, hash_sha256: hash, tipo_indicado: expectedType, tipo_detectado: analysis.type, rol_detectado: analysis.role, estado: 'por_revisar', confianza: analysis.confidence, datos_extraidos: analysis.data, texto_extraido: analysis.text.slice(0, 100000) }).select('*, notaria_expedientes(folio,titulo)').single();
     if (error) { await supabase.storage.from(BUCKET).remove([path]); throw new Error(error.message); }
     await audit(data.id, 'carga', { nombre: file.name, hash });
     await audit(data.id, 'lectura_local', { tipo: analysis.type, confianza: analysis.confidence });
+    if (duplicate) await audit(data.id, 'sustitucion', { documento_anterior_id: duplicate.id, motivo: 'La versión anterior fue rechazada.' });
     return fromRow(data);
   },
   async analyzeWithAi(documentId: string) {
