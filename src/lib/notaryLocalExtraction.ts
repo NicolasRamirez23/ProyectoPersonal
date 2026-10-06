@@ -108,13 +108,26 @@ function csfData(text: string) {
   const interior = between(text, 'N[uú]mero Interior', ['Nombre de la Colonia']);
   const colony = between(text, 'Nombre de la Colonia', ['Nombre de la Localidad']);
   const locality = between(text, 'Nombre de la Localidad', ['Nombre del Municipio', 'Nombre de Municipio', 'Municipio o Demarcaci[oó]n Territorial']);
-  const municipality = between(text, '(?:Nombre del Municipio|Nombre de Municipio|Municipio o Demarcaci[oó]n Territorial)', ['Nombre de la Entidad Federativa', 'Entidad Federativa']);
+  const municipality = between(text, '(?:Nombre del Municipio o Demarcaci[oó]n Territorial|Municipio o Demarcaci[oó]n Territorial|Nombre del Municipio|Nombre de Municipio)', ['Nombre de la Entidad Federativa', 'Entidad Federativa']);
   const state = between(text, '(?:Nombre de la Entidad Federativa|Entidad Federativa)', ['Entre Calle', 'Y Calle', 'Actividades Econ[oó]micas']);
   const domicilio = clean([
     streetType, street, exterior && `No. ${exterior}`, interior && interior !== exterior ? `Int. ${interior}` : '',
     colony && `Col. ${colony}`, locality, municipality && municipality !== locality ? municipality : '', state, postalCode && `C.P. ${postalCode}`,
   ].filter(Boolean).join(', '));
-  return { nombre: clean([nombres, paterno, materno].filter(Boolean).join(' ')), nombres, apellidoPaterno: paterno, apellidoMaterno: materno, domicilio, codigoPostal: postalCode };
+  const activitySection = between(text, 'Actividades Econ[oó]micas', ['Reg[ií]menes']);
+  const actividadesEconomicas = [...activitySection.matchAll(/(?:^|\s)\d+\s+(.+?)\s+\d{1,3}(?:\.\d+)?\s+(\d{2}\/\d{2}\/\d{4})/g)]
+    .map((match) => clean(`${match[1]} · desde ${match[2]}`));
+  const regimeSection = between(text, 'Reg[ií]menes', ['Obligaciones', 'Sus datos personales', 'Caracter[ií]sticas Fiscales']);
+  const regimenes = [...regimeSection.matchAll(/((?:R[eé]gimen|Sueldos|Personas|Incorporaci[oó]n|Actividades)[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s,().&-]{4,}?)\s+(\d{2}\/\d{2}\/\d{4})/g)]
+    .map((match) => ({ label: clean(`${match[1]} · desde ${match[2]}`), date: match[2] }));
+  const toTime = (date: string) => { const [day, month, year] = date.split('/').map(Number); return new Date(year, month - 1, day).getTime(); };
+  regimenes.sort((a, b) => toTime(b.date) - toTime(a.date));
+  const regimenesFiscales = regimenes.map(({ label }) => label);
+  const idCif = normalized(text).match(/\bID\s*CIF\s*[:=]?\s*(\d{6,20})\b/)?.[1] || '';
+  return {
+    nombre: clean([nombres, paterno, materno].filter(Boolean).join(' ')), nombres, apellidoPaterno: paterno, apellidoMaterno: materno,
+    domicilio, codigoPostal: postalCode, actividadesEconomicas, regimenesFiscales, regimenFiscal: regimenesFiscales[0] || '', idCif,
+  };
 }
 
 function ineData(text: string) {
