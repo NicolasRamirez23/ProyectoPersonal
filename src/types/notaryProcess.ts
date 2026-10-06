@@ -21,7 +21,17 @@ export interface NotaryCase {
 export interface NotaryStageDraft { concept: string; description: string; deadline: string; cost: number; responsible: string; }
 
 export type NotaryDocumentStatus = 'pendiente' | 'procesando' | 'por_revisar' | 'confirmado' | 'rechazado' | 'error';
-export interface NotaryExtractedData { nombre?: string; curp?: string; rfc?: string; domicilio?: string; fechaNacimiento?: string; claveElector?: string; numeroDocumento?: string; [key: string]: string | undefined; }
+export interface NotaryExtractedData {
+  nombre?: string; nombres?: string; apellidoPaterno?: string; apellidoMaterno?: string; curp?: string; rfc?: string;
+  domicilio?: string; fechaNacimiento?: string; lugarNacimiento?: string; sexo?: string; nacionalidad?: string;
+  claveElector?: string; numeroDocumento?: string; seccion?: string; anioRegistro?: string; vigencia?: string;
+  cic?: string; ocr?: string; fechaRegistro?: string; oficialia?: string; libro?: string; numeroActa?: string;
+  municipioRegistro?: string; entidadRegistro?: string; nombrePadre?: string; nombreMadre?: string;
+  fechaDefuncion?: string; horaDefuncion?: string; lugarDefuncion?: string; causaDefuncion?: string;
+  estadoCivil?: string; conyuge?: string; declarante?: string; codigoPostal?: string; regimenFiscal?: string;
+  notario?: string; numeroNotaria?: string; numeroInstrumento?: string; fechaInstrumento?: string;
+  [key: string]: string | undefined;
+}
 export interface NotaryInboxDocument {
   id: string; createdAt: string; caseId: string; caseFolio: string; caseTitle: string; clientId?: string;
   fileName: string; path: string; mimeType: string; size: number; hash: string; detectedType: string;
