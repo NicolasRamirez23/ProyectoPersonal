@@ -62,23 +62,12 @@ export const notaryInboxApi = {
     return fromRow(data);
   },
   async analyzeWithAi(documentId: string) {
-    const { data, error } = await supabase.functions.invoke('analyze-notary-document', { body: { documentId } });
-    if (error) {
-      let detail = error.message;
-      const context = (error as { context?: Response }).context;
-      if (context) {
-        try {
-          const payload = await context.clone().json() as { message?: string; error?: string };
-          detail = payload.message || payload.error || detail;
-        } catch {
-          try { detail = (await context.text()).trim() || detail; } catch { /* La respuesta no incluía detalle legible. */ }
-        }
-      }
-      if (/failed to send a request|failed to fetch|networkerror/i.test(detail)) {
-        throw new Error('El testamento quedó guardado, pero la función de análisis no está disponible. Verifica que analyze-notary-document esté desplegada en este proyecto de Supabase y vuelve a intentar.');
-      }
-      throw new Error(detail);
-    }
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error('Tu sesión expiró. Inicia sesión nuevamente.');
+    const response = await fetch('/api/analyze-notary-document', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ documentId }) });
+    const data = await response.json().catch(() => ({ message: 'La función devolvió una respuesta no válida.' }));
+    if (!response.ok) throw new Error(data?.message || 'No se pudo analizar el documento con IA.');
     if (!data?.ok) throw new Error(data?.message || 'No se pudo analizar el documento con IA.');
     return data;
   },
