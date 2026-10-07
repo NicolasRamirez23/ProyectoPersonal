@@ -28,9 +28,10 @@ export interface NotaryExtractedData {
   cic?: string; ocr?: string; idmex?: string; fechaRegistro?: string; oficialia?: string; libro?: string; numeroActa?: string;
   municipioRegistro?: string; entidadRegistro?: string; nombrePadre?: string; nombreMadre?: string;
   fechaDefuncion?: string; horaDefuncion?: string; lugarDefuncion?: string; causaDefuncion?: string;
-  estadoCivil?: string; conyuge?: string; declarante?: string; codigoPostal?: string; regimenFiscal?: string;
+  estadoCivil?: string; ocupacion?: string; conyuge?: string; declarante?: string; codigoPostal?: string; regimenFiscal?: string;
   regimenesFiscales?: string[]; actividadesEconomicas?: string[]; idCif?: string;
-  notario?: string; numeroNotaria?: string; numeroInstrumento?: string; fechaInstrumento?: string;
+  notario?: string; numeroNotaria?: string; numeroInstrumento?: string; fechaInstrumento?: string; lugarOtorgamiento?: string;
+  volumen?: string; herederos?: string[];
   [key: string]: string | string[] | undefined;
 }
 export interface NotaryInboxDocument {

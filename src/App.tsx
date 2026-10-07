@@ -36,6 +36,7 @@ import { NotaryCalendarPage } from './pages/NotaryCalendarPage';
 import { NotarySuccessionsPage } from './pages/NotarySuccessionsPage';
 import { NotarySuccessionDetailPage } from './pages/NotarySuccessionDetailPage';
 import { NotaryDocumentInboxPage } from './pages/NotaryDocumentInboxPage';
+import { NotaryPublicRegistrySearchPage } from './pages/NotaryPublicRegistrySearchPage';
 
 function AppShell() {
   return <AppLayout><Outlet /></AppLayout>;
@@ -63,6 +64,7 @@ export default function App() {
               <Route element={<ProtectedRoute allowedRoles={['admin', 'notaria']} />}>
                 <Route path="/notaria" element={<NotaryFormatsPage />} />
                 <Route path="/notaria/busqueda-radicacion" element={<NotarySearchOfficePage />} />
+                <Route path="/notaria/busqueda-registro-publico" element={<NotaryPublicRegistrySearchPage />} />
                 <Route path="/notaria/documentos" element={<NotaryDocumentsPage />} />
                 <Route path="/notaria/expedientes" element={<NotaryCasesPage />} />
                 <Route path="/notaria/expedientes/nuevo" element={<NotaryCaseFormPage />} />

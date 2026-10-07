@@ -170,6 +170,23 @@ function deathCertificateData(text: string) {
   };
 }
 
+function testamentData(text: string) {
+  const upper = normalized(text);
+  const instrument = upper.match(/(?:INSTRUMENTO|ESCRITURA)\s+(?:PUBLICA\s+)?(?:NUMERO|NO\.?|N[ÚU]M\.?)[\s:#-]*([\d,.]+)/)?.[1] || '';
+  const volume = upper.match(/(?:VOLUMEN|LIBRO)\s+(?:NUMERO|NO\.?|N[ÚU]M\.?)?[\s:#-]*([\d,.]+)/)?.[1] || '';
+  const dateMatch = text.match(/(?:FECHA|OTORGAD[OA]\s+EL|A\s+LOS?)\s*[:\-]?\s*((?:\d{1,2}[\/-]\d{1,2}[\/-]\d{4})|(?:\d{1,2}\s+DE\s+[A-ZÁÉÍÓÚÜÑ]+\s+DE\s+\d{4}))/i);
+  const notary = firstBetween(text, ['(?:ANTE LA FE DEL|NOTARIO(?: P[ÚU]BLICO)?)'], ['NOTAR[IÍ]A', 'N[ÚU]MERO', 'NUMERO', 'CON EJERCICIO', 'CON RESIDENCIA', 'EN']);
+  const number = upper.match(/NOTAR[IÍ]A\s+(?:P[ÚU]BLICA\s+)?(?:N[ÚU]MERO|NO\.?)\s*([A-Z0-9]+)/)?.[1] || '';
+  const place = firstBetween(text, ['(?:CON EJERCICIO|CON RESIDENCIA|OTORGADO)\s+EN'], ['DE FECHA', 'A LOS', 'EL D[IÍ]A', 'ANTE']);
+  const heirsSection = firstBetween(text, ['INSTITUYE?\s+(?:COMO\s+)?HEREDER', 'HEREDEROS?'], ['LEGADOS?', 'ALBACEA', 'CL[ÁA]USULA', 'TESTIGOS?', 'REVOC']);
+  const herederos = heirsSection.split(/,|;|\s+Y\s+/i).map(clean).filter((value) => value.length >= 5 && value.length <= 100).slice(0, 12);
+  const testatorMatch = text.match(/(?:TESTAMENTO\s+(?:P[ÚU]BLICO\s+ABIERTO\s+)?(?:QUE\s+)?OTORGA|TESTADOR(?:A)?\s*:?|OTORGADO\s+POR)\s+([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ\s]{5,100}?)(?=,|\s+ANTE|\s+QUIEN|\s+MANIF)/i);
+  return {
+    nombre: clean(testatorMatch?.[1] || ''), numeroInstrumento: clean(instrument), volumen: clean(volume),
+    fechaInstrumento: dateMatch ? isoDate(dateMatch[1]) : '', notario: clean(notary), numeroNotaria: clean(number), lugarOtorgamiento: clean(place), herederos,
+  };
+}
+
 function csfData(text: string) {
   const nombres = between(text, 'Nombre\\s*\\(s\\)', ['Primer Apellido']);
   const paterno = between(text, 'Primer Apellido', ['Segundo Apellido']);
@@ -258,12 +275,14 @@ function extract(text: string, indicatedType = ''): NotaryExtractedData {
   const isCsf = upper.includes('CONSTANCIA DE SITUACION FISCAL') || upper.includes('DATOS DEL DOMICILIO REGISTRADO');
   const isIne = upper.includes('INSTITUTO NACIONAL ELECTORAL') || upper.includes('CREDENCIAL PARA VOTAR');
   const isDeathCertificate = indicatedType === 'Acta de defunción' || upper.includes('ACTA DE DEFUNCION') || upper.includes('DATOS DE LA PERSONA FALLECIDA');
+  const isTestament = indicatedType === 'Testamento' || upper.includes('TESTAMENTO PUBLICO') || upper.includes('TESTADOR');
   const csf = isCsf ? csfData(text) : { nombre: '', domicilio: '' };
   const ine = isIne ? ineData(text) : { nombre: '', domicilio: '' };
   const deathCertificate = isDeathCertificate ? deathCertificateData(text) : {};
+  const testament = isTestament ? testamentData(text) : {};
   const nameMatch = text.match(/(?:NOMBRE(?:\s*\(S\))?|NOMBRE COMPLETO)\s*[:\-]?\s*([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ\s]{5,80})/i);
   const addressMatch = text.match(/(?:DOMICILIO|DOMICILIO FISCAL)\s*[:\-]?\s*([^\n]{8,160})/i);
-  return { ...ine, ...csf, ...deathCertificate, nombre: deathCertificate.nombre || csf.nombre || ine.nombre || clean(nameMatch?.[1] || ''), curp: deathCertificate.curp || curp, rfc, domicilio: csf.domicilio || ine.domicilio || clean(addressMatch?.[1] || ''), fechaNacimiento: deathCertificate.fechaNacimiento || birth || ine.fechaNacimiento || '', sexo: deathCertificate.sexo || ine.sexo || (curp ? curp.charAt(10) : ''), claveElector };
+  return { ...ine, ...csf, ...testament, ...deathCertificate, nombre: deathCertificate.nombre || testament.nombre || csf.nombre || ine.nombre || clean(nameMatch?.[1] || ''), curp: deathCertificate.curp || curp, rfc, domicilio: csf.domicilio || ine.domicilio || clean(addressMatch?.[1] || ''), fechaNacimiento: deathCertificate.fechaNacimiento || birth || ine.fechaNacimiento || '', sexo: deathCertificate.sexo || ine.sexo || (curp ? curp.charAt(10) : ''), claveElector };
 }
 
 function detectRole(text: string) {

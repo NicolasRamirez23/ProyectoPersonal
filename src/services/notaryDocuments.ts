@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient';
-import { createNotarySearchOfficeDocx, createNotarySearchOfficePdf } from '../lib/notaryDocuments';
-import type { NotarySearchOfficeData, NotaryStoredDocument } from '../types/notary';
+import { createNotarySearchOfficeDocx, createNotarySearchOfficePdf, createPublicRegistrySearchDocx, createPublicRegistrySearchPdf } from '../lib/notaryDocuments';
+import type { NotaryPublicRegistrySearchData, NotarySearchOfficeData, NotaryStoredDocument } from '../types/notary';
 
 const BUCKET = 'documentos-notaria';
 const mapDocument = (row: any, urls?: Map<string, string>): NotaryStoredDocument => ({
@@ -36,6 +36,26 @@ export const notaryDocumentsApi = {
       await supabase.from('documentos_notaria').delete().eq('id', row.id);
       throw new Error(updateError.message);
     }
+    return mapDocument(saved);
+  },
+  async createPublicRegistrySearch(data: NotaryPublicRegistrySearchData) {
+    const { data: row, error } = await supabase.from('documentos_notaria').insert({
+      tipo_formato: 'BUSQUEDA_REGISTRO_PUBLICO', nombre_referencia: data.deceasedName.trim().toUpperCase(),
+      autoridad: data.authorityName.trim().toUpperCase(), datos: data,
+    }).select('*').single();
+    if (error) throw new Error(error.message);
+    const basePath = `${row.id}/${row.folio}`; const docxPath = `${basePath}.docx`; const pdfPath = `${basePath}.pdf`;
+    const [docx, pdf] = await Promise.all([createPublicRegistrySearchDocx(data), Promise.resolve(createPublicRegistrySearchPdf(data))]);
+    const [docxUpload, pdfUpload] = await Promise.all([
+      supabase.storage.from(BUCKET).upload(docxPath, docx, { contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+      supabase.storage.from(BUCKET).upload(pdfPath, pdf, { contentType: 'application/pdf' }),
+    ]);
+    if (docxUpload.error || pdfUpload.error) {
+      await supabase.storage.from(BUCKET).remove([docxPath, pdfPath]); await supabase.from('documentos_notaria').delete().eq('id', row.id);
+      throw new Error(docxUpload.error?.message || pdfUpload.error?.message || 'No fue posible guardar los archivos.');
+    }
+    const { data: saved, error: updateError } = await supabase.from('documentos_notaria').update({ ruta_docx: docxPath, ruta_pdf: pdfPath }).eq('id', row.id).select('*').single();
+    if (updateError) throw new Error(updateError.message);
     return mapDocument(saved);
   },
   async list() {

@@ -50,9 +50,23 @@ export interface NotaryStoredDocument {
   formatType: string;
   referenceName: string;
   authority: string;
-  data: NotarySearchOfficeData;
+  data: NotarySearchOfficeData | NotaryPublicRegistrySearchData;
   docxPath?: string;
   pdfPath?: string;
   docxUrl?: string;
   pdfUrl?: string;
+}
+
+export interface NotaryPublicRegistrySearchData {
+  place: string; issueDate: string;
+  authorityName: string; authorityTitle: string; authorityDepartment: string;
+  deceasedName: string; deceasedGender: GrammaticalGender;
+  heirNames: string[];
+  willInstrument: string; willInstrumentWords: string; willVolume: string; willVolumeWords: string;
+  willDate: string; willNotaryName: string; willNotaryNumber: string; willPlace: string;
+  nationality: string; birthCity: string; birthState: string; birthDate: string;
+  maritalStatus: string; occupation: string; fullAddress: string; curp: string;
+  fatherName: string; fatherDeceased: boolean; motherName: string; motherDeceased: boolean;
+  signerName: string; signerTitle: string;
+  caseId?: string; sourceDocumentId?: string; sourceFileName?: string;
 }

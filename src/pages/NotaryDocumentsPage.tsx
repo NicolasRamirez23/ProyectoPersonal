@@ -5,7 +5,7 @@ import { useAlerts } from '../components/AlertProvider';
 import { notaryDocumentsApi } from '../services/notaryDocuments';
 import type { NotaryStoredDocument } from '../types/notary';
 
-const formatNames: Record<string, string> = { BUSQUEDA_RADICACION: 'Búsqueda de radicación' };
+const formatNames: Record<string, string> = { BUSQUEDA_RADICACION: 'Búsqueda de radicación', BUSQUEDA_REGISTRO_PUBLICO: 'Búsqueda en Registro Público' };
 export function NotaryDocumentsPage() {
   const [documents, setDocuments] = useState<NotaryStoredDocument[]>([]); const [query, setQuery] = useState(''); const [loading, setLoading] = useState(true); const { notify } = useAlerts();
   useEffect(() => { let active = true; notaryDocumentsApi.list().then((rows) => { if (active) setDocuments(rows); }).catch((error) => notify('error', 'No se pudo cargar el archivo notarial', error.message)).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [notify]);
