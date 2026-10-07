@@ -65,7 +65,15 @@ export const notaryInboxApi = {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData.session?.access_token;
     if (!token) throw new Error('Tu sesión expiró. Inicia sesión nuevamente.');
-    const response = await fetch('/api/analyze-notary-document', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ documentId }) });
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 90_000);
+    let response: Response;
+    try {
+      response = await fetch('/api/analyze-notary-document', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ documentId }), signal: controller.signal });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') throw new Error('El análisis tardó más de 90 segundos. El archivo sigue guardado y puedes reintentarlo.');
+      throw error;
+    } finally { window.clearTimeout(timeout); }
     const data = await response.json().catch(() => ({ message: 'La función devolvió una respuesta no válida.' }));
     if (!response.ok) throw new Error(data?.message || 'No se pudo analizar el documento con IA.');
     if (!data?.ok) throw new Error(data?.message || 'No se pudo analizar el documento con IA.');
