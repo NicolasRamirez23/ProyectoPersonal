@@ -23,7 +23,7 @@ export interface NotaryStageDraft { concept: string; description: string; deadli
 export type NotaryDocumentStatus = 'pendiente' | 'procesando' | 'por_revisar' | 'confirmado' | 'rechazado' | 'error';
 export interface NotaryExtractedData {
   nombre?: string; nombres?: string; apellidoPaterno?: string; apellidoMaterno?: string; curp?: string; rfc?: string;
-  domicilio?: string; fechaNacimiento?: string; lugarNacimiento?: string; sexo?: string; nacionalidad?: string;
+  domicilio?: string; fechaNacimiento?: string; lugarNacimiento?: string; ciudadNacimiento?: string; estadoNacimiento?: string; sexo?: string; nacionalidad?: string;
   claveElector?: string; numeroDocumento?: string; seccion?: string; anioRegistro?: string; vigencia?: string;
   cic?: string; ocr?: string; idmex?: string; fechaRegistro?: string; oficialia?: string; libro?: string; numeroActa?: string;
   municipioRegistro?: string; entidadRegistro?: string; nombrePadre?: string; nombreMadre?: string;

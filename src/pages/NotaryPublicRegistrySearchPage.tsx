@@ -30,9 +30,13 @@ export function NotaryPublicRegistrySearchPage() {
   const applyDocumentData = (document: Awaited<ReturnType<typeof notaryInboxApi.list>>[number]) => {
     const found = document.extractedData;
     const birthplace = typeof found.lugarNacimiento === 'string' ? found.lugarNacimiento : '';
+    const fullName = typeof found.nombre === 'string' && found.nombre.trim()
+      ? found.nombre
+      : [found.nombres, found.apellidoPaterno, found.apellidoMaterno].filter((value): value is string => typeof value === 'string' && !!value.trim()).join(' ');
+    const birthplaceParts = birthplace.split(',').map((value) => value.trim()).filter(Boolean);
     setData((current) => ({ ...current,
       caseId: document.caseId || current.caseId, sourceDocumentId: document.id, sourceFileName: document.fileName,
-      deceasedName: typeof found.nombre === 'string' ? found.nombre.toUpperCase() : current.deceasedName,
+      deceasedName: fullName ? fullName.toUpperCase() : current.deceasedName,
       deceasedGender: found.sexo === 'H' ? 'M' : found.sexo === 'M' ? 'F' : current.deceasedGender,
       heirNames: Array.isArray(found.herederos) ? found.herederos.map((value) => value.toUpperCase()) : current.heirNames,
       willInstrument: typeof found.numeroInstrumento === 'string' ? found.numeroInstrumento : current.willInstrument,
@@ -42,7 +46,9 @@ export function NotaryPublicRegistrySearchPage() {
       willNotaryNumber: typeof found.numeroNotaria === 'string' ? found.numeroNotaria : current.willNotaryNumber,
       willPlace: typeof found.lugarOtorgamiento === 'string' ? found.lugarOtorgamiento : current.willPlace,
       nationality: typeof found.nacionalidad === 'string' ? found.nacionalidad.toLowerCase() : current.nationality,
-      birthCity: birthplace || current.birthCity, birthDate: typeof found.fechaNacimiento === 'string' ? found.fechaNacimiento : current.birthDate,
+      birthCity: typeof found.ciudadNacimiento === 'string' && found.ciudadNacimiento ? found.ciudadNacimiento : birthplaceParts[0] || current.birthCity,
+      birthState: typeof found.estadoNacimiento === 'string' && found.estadoNacimiento ? found.estadoNacimiento : birthplaceParts.at(-1) || current.birthState,
+      birthDate: typeof found.fechaNacimiento === 'string' ? found.fechaNacimiento : current.birthDate,
       maritalStatus: typeof found.estadoCivil === 'string' ? found.estadoCivil.toLowerCase() : current.maritalStatus,
       occupation: typeof found.ocupacion === 'string' ? found.ocupacion : current.occupation,
       fullAddress: typeof found.domicilio === 'string' ? found.domicilio : current.fullAddress,
