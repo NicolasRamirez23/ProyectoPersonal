@@ -61,7 +61,7 @@ export const notaryInboxApi = {
     if (duplicate) await audit(data.id, 'sustitucion', { documento_anterior_id: duplicate.id, motivo: 'La versión anterior fue rechazada.' });
     return fromRow(data);
   },
-  async analyzeWithAi(documentId: string) {
+  async analyzeWithAi(documentId: string, force = false) {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData.session?.access_token;
     if (!token) throw new Error('Tu sesión expiró. Inicia sesión nuevamente.');
@@ -69,7 +69,7 @@ export const notaryInboxApi = {
     const timeout = window.setTimeout(() => controller.abort(), 90_000);
     let response: Response;
     try {
-      response = await fetch('/api/analyze-notary-document', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ documentId }), signal: controller.signal });
+      response = await fetch('/api/analyze-notary-document', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ documentId, force }), signal: controller.signal });
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') throw new Error('El análisis tardó más de 90 segundos. El archivo sigue guardado y puedes reintentarlo.');
       throw error;

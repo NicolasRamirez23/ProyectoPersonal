@@ -63,12 +63,12 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     const { data: profile } = await supabase.from('perfiles').select('rol').eq('id', user.id).single();
     if (!['admin','notaria'].includes(profile?.rol)) return send(response, { message: 'No tienes acceso al módulo de Notaría.' }, 403);
     const parsedBody = typeof request.body === 'string' ? JSON.parse(request.body) : request.body;
-    const { documentId } = (parsedBody || {}) as { documentId?: string };
+    const { documentId, force = false } = (parsedBody || {}) as { documentId?: string; force?: boolean };
     if (!documentId) throw new Error('Documento no especificado.');
     const { data: document, error } = await supabase.from('notaria_documentos_expediente').select('id,nombre_archivo,ruta,mime_type,texto_extraido,tipo_indicado,estado,analizado_con_ia,datos_extraidos').eq('id', documentId).single();
     if (error || !document) throw new Error('Documento no encontrado o sin permiso de acceso.');
     if (document.estado === 'confirmado') throw new Error('El documento ya fue confirmado y no se modificará automáticamente.');
-    if (document.analizado_con_ia) return send(response, { ok: true, documentId: document.id, alreadyAnalyzed: true });
+    if (document.analizado_con_ia && !force) return send(response, { ok: true, documentId: document.id, alreadyAnalyzed: true, extractedData: document.datos_extraidos || {} });
     const project = process.env.GCP_PROJECT_ID; const location = process.env.GCP_LOCATION || 'global'; const model = process.env.VERTEX_MODEL;
     if (!project || !model) throw new Error('Falta completar Vertex AI en Vercel.');
     const accessToken = await googleAccessToken(oidcToken);
@@ -95,11 +95,12 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     if (!outputText) throw new Error('La IA no devolvió un resultado verificable.');
     const output = JSON.parse(outputText);
     const aiData = Object.fromEntries(Object.entries(output.datos || {}).filter(([, value]) => (typeof value === 'string' && value.trim()) || (Array.isArray(value) && value.some((item) => typeof item === 'string' && item.trim()))));
+    if (!Object.keys(aiData).length) throw new Error('La IA no encontró datos verificables en el documento. Intenta con un escaneo más nítido.');
     const extracted = { ...(document.datos_extraidos || {}), ...aiData };
-    const { error: updateError } = await supabase.from('notaria_documentos_expediente').update({ tipo_detectado: output.tipoDocumento || 'Otro', rol_detectado: output.rolPersona || '', confianza: Math.max(0, Math.min(100, Number(output.confianza) || 0)), datos_extraidos: extracted, analizado_con_ia: true, proveedor_ia: 'vertex-ai-oidc', modelo_ia: raw.modelVersion || model, analizado_ia_el: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', document.id);
+    const { error: updateError } = await supabase.from('notaria_documentos_expediente').update({ tipo_detectado: output.tipoDocumento || 'Otro', rol_detectado: output.rolPersona || '', confianza: Math.max(0, Math.min(100, Number(output.confianza) || 0)), datos_extraidos: extracted, analizado_con_ia: true, proveedor_ia: 'vertex-ai-oidc', modelo_ia: raw.modelVersion || model, analizado_ia_el: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', document.id).select('id').single();
     if (updateError) throw new Error(updateError.message);
     await supabase.from('notaria_documentos_bitacora').insert({ documento_id: document.id, accion: 'analisis_ia', detalle: { proveedor: 'vertex-ai-oidc', modelo: raw.modelVersion || model, advertencias: output.advertencias || [] }, usuario_id: user.id });
-    return send(response, { ok: true, documentId: document.id, warnings: output.advertencias || [] });
+    return send(response, { ok: true, documentId: document.id, extractedData: extracted, warnings: output.advertencias || [] });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'No se pudo analizar el documento.';
     console.error('[analyze-notary-document] failed', { message });

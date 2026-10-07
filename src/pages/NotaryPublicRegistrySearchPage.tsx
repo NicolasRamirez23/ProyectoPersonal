@@ -56,8 +56,9 @@ export function NotaryPublicRegistrySearchPage() {
     if (!data.sourceDocumentId) return;
     setProcessing(true); setProgress('Reintentando análisis con IA…');
     try {
-      await notaryInboxApi.analyzeWithAi(data.sourceDocumentId);
+      const result = await notaryInboxApi.analyzeWithAi(data.sourceDocumentId, true);
       const analyzed = (await notaryInboxApi.list()).find((item) => item.id === data.sourceDocumentId);
+      if (analyzed && result.extractedData) analyzed.extractedData = result.extractedData;
       if (analyzed) applyDocumentData(analyzed);
       notify('success', 'Testamento analizado', 'Actualizamos el formulario con los datos propuestos por la IA.');
     } catch (error) { notify('warning', 'El testamento sigue seguro', error instanceof Error ? error.message : 'El análisis de IA sigue pendiente.'); }
@@ -72,8 +73,9 @@ export function NotaryPublicRegistrySearchPage() {
       const document = await notaryInboxApi.upload({ id: selectedCase.id, clientId: selectedCase.cliente_id }, file, 'Testamento', setProgress);
       applyDocumentData(document);
       try {
-        setProgress('Analizando el testamento con IA empresarial…'); await notaryInboxApi.analyzeWithAi(document.id);
+        setProgress('Analizando el testamento con IA empresarial…'); const result = await notaryInboxApi.analyzeWithAi(document.id);
         const analyzed = (await notaryInboxApi.list()).find((item) => item.id === document.id) || document;
+        if (result.extractedData) analyzed.extractedData = result.extractedData;
         applyDocumentData(analyzed);
         notify('success', 'Testamento analizado', 'Los datos encontrados se colocaron como propuesta. Revísalos antes de generar el oficio.');
       } catch (error) {
