@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
+export const config = { maxDuration: 300 };
+
 type ApiRequest = { method?: string; headers: Record<string, string | string[] | undefined>; body?: unknown };
 type ApiResponse = { setHeader(name: string, value: string): void; status(code: number): ApiResponse; json(body: unknown): void };
 const send = (response: ApiResponse, body: unknown, status = 200) => { response.setHeader('Cache-Control', 'no-store'); response.status(status).json(body); };
@@ -91,7 +93,31 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     const endpoint = `https://${apiHost}/v1/projects/${project}/locations/${location}/publishers/google/models/${model}:generateContent`;
     const schema = structuredClone(responseSchema) as any;
     if (document.tipo_indicado === 'Testamento') schema.properties.datos.required = ['nombre','sexo','curp','nacionalidad','fechaNacimiento','lugarNacimiento','estadoCivil','domicilio','ocupacion','nombrePadre','nombreMadre','numeroInstrumento','volumen','fechaInstrumento','notario','numeroNotaria','lugarOtorgamiento','herederos'];
-    const aiResponse = await fetch(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ role: 'user', parts }], generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: schema } }) });
+    const vertexController = new AbortController();
+    const vertexTimeout = setTimeout(() => vertexController.abort(), 210_000);
+    let aiResponse: Response;
+    try {
+      aiResponse = await fetch(endpoint, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts }],
+          generationConfig: {
+            temperature: 0,
+            maxOutputTokens: 4096,
+            responseMimeType: 'application/json',
+            responseSchema: schema,
+            thinkingConfig: { thinkingBudget: 0 },
+          },
+        }),
+        signal: vertexController.signal,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') throw new Error('Google tardó demasiado en leer el documento. Intenta nuevamente o usa un escaneo más nítido.');
+      throw error;
+    } finally {
+      clearTimeout(vertexTimeout);
+    }
     const raw = await aiResponse.json() as any;
     if (!aiResponse.ok) throw new Error(raw?.error?.message || `Vertex AI no pudo analizar el documento (${aiResponse.status}).`);
     const outputText = raw?.candidates?.[0]?.content?.parts?.[0]?.text;
