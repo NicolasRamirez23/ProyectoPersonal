@@ -69,7 +69,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     if (error || !document) throw new Error('Documento no encontrado o sin permiso de acceso.');
     if (document.estado === 'confirmado') throw new Error('El documento ya fue confirmado y no se modificará automáticamente.');
     if (document.analizado_con_ia) return send(response, { ok: true, documentId: document.id, alreadyAnalyzed: true });
-    const project = process.env.GCP_PROJECT_ID; const location = process.env.GCP_LOCATION || 'us-central1'; const model = process.env.VERTEX_MODEL;
+    const project = process.env.GCP_PROJECT_ID; const location = process.env.GCP_LOCATION || 'global'; const model = process.env.VERTEX_MODEL;
     if (!project || !model) throw new Error('Falta completar Vertex AI en Vercel.');
     const accessToken = await googleAccessToken(oidcToken);
     const typeContext = document.tipo_indicado ? `El operador indicó que espera un documento de tipo: ${document.tipo_indicado}. Usa esa indicación como contexto, pero advierte si el contenido no corresponde.` : 'El operador solicitó detección automática del tipo.';
@@ -86,7 +86,8 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       const encoded = Buffer.from(await original.arrayBuffer()).toString('base64');
       parts = [{ inlineData: { mimeType: document.mime_type, data: encoded } }, { text: instructions }];
     }
-    const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${model}:generateContent`;
+    const apiHost = location === 'global' ? 'aiplatform.googleapis.com' : `${location}-aiplatform.googleapis.com`;
+    const endpoint = `https://${apiHost}/v1/projects/${project}/locations/${location}/publishers/google/models/${model}:generateContent`;
     const aiResponse = await fetch(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ role: 'user', parts }], generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema } }) });
     const raw = await aiResponse.json() as any;
     if (!aiResponse.ok) throw new Error(raw?.error?.message || `Vertex AI no pudo analizar el documento (${aiResponse.status}).`);
