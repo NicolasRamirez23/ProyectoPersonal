@@ -100,7 +100,7 @@ function classify(text: string, fileName: string) {
     ['INE', ['INSTITUTO NACIONAL ELECTORAL', 'CREDENCIAL PARA VOTAR', 'CLAVE DE ELECTOR']],
     ['CSF', ['CONSTANCIA DE SITUACION FISCAL', 'REGISTRO FEDERAL DE CONTRIBUYENTES', 'REGIMEN FISCAL']],
     ['CURP', ['CLAVE UNICA DE REGISTRO DE POBLACION', 'CURP']],
-    ['Acta de defunción', ['ACTA DE DEFUNCION', 'DATOS DE LA DEFUNCION']],
+    ['Acta de defunción', ['ACTA DE DEFUNCION', 'DATOS DE LA DEFUNCION', 'DATOS DE LA PERSONA FALLECIDA', 'DEFUNCION']],
     ['Acta de matrimonio', ['ACTA DE MATRIMONIO', 'CONTRAYENTES']],
     ['Acta de nacimiento', ['ACTA DE NACIMIENTO', 'DATOS DE LA PERSONA REGISTRADA']],
     ['Testamento', ['TESTAMENTO', 'HEREDERO', 'LEGATARIO', 'ALBACEA']],
@@ -115,6 +115,59 @@ function classify(text: string, fileName: string) {
 function between(text: string, label: string, nextLabels: string[]) {
   const next = nextLabels.length ? `(?=${nextLabels.join('|')}|$)` : '$';
   return clean(text.match(new RegExp(`${label}\\s*:?\\s*(.*?)\\s*${next}`, 'i'))?.[1] || '');
+}
+
+function firstBetween(text: string, labels: string[], nextLabels: string[]) {
+  for (const label of labels) {
+    const value = between(text, label, nextLabels);
+    if (value) return value;
+  }
+  return '';
+}
+
+function isoDate(value: string) {
+  const numeric = value.match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})\b/);
+  if (numeric) return `${numeric[3]}-${numeric[2].padStart(2, '0')}-${numeric[1].padStart(2, '0')}`;
+  const months: Record<string, string> = { ENERO: '01', FEBRERO: '02', MARZO: '03', ABRIL: '04', MAYO: '05', JUNIO: '06', JULIO: '07', AGOSTO: '08', SEPTIEMBRE: '09', SETIEMBRE: '09', OCTUBRE: '10', NOVIEMBRE: '11', DICIEMBRE: '12' };
+  const written = normalized(value).match(/\b(\d{1,2})\s+DE\s+([A-Z]+)\s+DE\s+(\d{4})\b/);
+  return written && months[written[2]] ? `${written[3]}-${months[written[2]]}-${written[1].padStart(2, '0')}` : clean(value);
+}
+
+function deathCertificateData(text: string) {
+  const personSection = firstBetween(text, ['DATOS DE LA PERSONA FALLECIDA', 'DATOS DEL FINADO', 'DATOS DEL FALLECIDO'], ['DATOS DE LA DEFUNCI[OÓ]N', 'DATOS DEL FALLECIMIENTO', 'DEFUNCI[OÓ]N']);
+  const deathSection = firstBetween(text, ['DATOS DE LA DEFUNCI[OÓ]N', 'DATOS DEL FALLECIMIENTO'], ['DATOS DE LOS PADRES', 'DATOS DEL DECLARANTE', 'DATOS DE REGISTRO', 'CERTIFICADO']);
+  const registrationSection = firstBetween(text, ['DATOS DE REGISTRO', 'DATOS DEL ACTA'], ['ANOTACIONES', 'CADENA DIGITAL', 'FIRMA ELECTR[OÓ]NICA']);
+  const source = personSection || text;
+  const nextName = ['Primer Apellido', 'Apellido Paterno', 'Segundo Apellido', 'Apellido Materno', 'CURP', 'Sexo'];
+  const nombres = firstBetween(source, ['Nombre\\s*\\(s\\)', 'Nombres?'], nextName);
+  const apellidoPaterno = firstBetween(source, ['Primer Apellido', 'Apellido Paterno'], ['Segundo Apellido', 'Apellido Materno', 'CURP', 'Sexo']);
+  const apellidoMaterno = firstBetween(source, ['Segundo Apellido', 'Apellido Materno'], ['CURP', 'Sexo', 'Fecha de Nacimiento']);
+  const nombre = clean([nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(' '));
+  const pick = (scope: string, labels: string[], next: string[]) => firstBetween(scope || text, labels, next);
+  const fechaNacimientoRaw = pick(source, ['Fecha de Nacimiento'], ['Lugar de Nacimiento', 'Nacionalidad', 'Sexo', 'Estado Civil']);
+  const fechaDefuncionRaw = pick(deathSection, ['Fecha de Defunci[oó]n', 'Fecha del Fallecimiento'], ['Hora de Defunci[oó]n', 'Hora del Fallecimiento', 'Lugar de Defunci[oó]n']);
+  return {
+    nombre, nombres, apellidoPaterno, apellidoMaterno,
+    curp: normalized(source).match(/\b[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d\b/)?.[0] || '',
+    sexo: pick(source, ['Sexo'], ['Fecha de Nacimiento', 'Nacionalidad', 'Estado Civil']),
+    nacionalidad: pick(source, ['Nacionalidad'], ['Estado Civil', 'Fecha de Nacimiento', 'Domicilio']),
+    fechaNacimiento: isoDate(fechaNacimientoRaw),
+    estadoCivil: pick(source, ['Estado Civil'], ['Nacionalidad', 'Domicilio', 'Nombre del C[oó]nyuge']),
+    conyuge: pick(text, ['Nombre del C[oó]nyuge', 'C[oó]nyuge'], ['Datos de los Padres', 'Nombre del Padre', 'Nombre de la Madre', 'Declarante']),
+    fechaDefuncion: isoDate(fechaDefuncionRaw),
+    horaDefuncion: pick(deathSection, ['Hora de Defunci[oó]n', 'Hora del Fallecimiento'], ['Lugar de Defunci[oó]n', 'Lugar del Fallecimiento', 'Causa']),
+    lugarDefuncion: pick(deathSection, ['Lugar de Defunci[oó]n', 'Lugar del Fallecimiento'], ['Causa de la Defunci[oó]n', 'Domicilio', 'Certificado']),
+    causaDefuncion: pick(deathSection, ['Causa de la Defunci[oó]n', 'Causa del Fallecimiento'], ['Certificado', 'M[eé]dico', 'Datos de los Padres']),
+    nombrePadre: pick(text, ['Nombre del Padre', 'Padre'], ['Nombre de la Madre', 'Madre', 'Datos del Declarante']),
+    nombreMadre: pick(text, ['Nombre de la Madre', 'Madre'], ['Datos del Declarante', 'Declarante', 'Datos de Registro']),
+    declarante: pick(text, ['Nombre del Declarante', 'Declarante'], ['Parentesco', 'Datos de Registro', 'Oficial[ií]a']),
+    oficialia: pick(registrationSection, ['Oficial[ií]a'], ['Libro', 'N[uú]mero de Acta', 'Acta']),
+    libro: pick(registrationSection, ['Libro'], ['N[uú]mero de Acta', 'Acta', 'Fecha de Registro']),
+    numeroActa: pick(registrationSection, ['N[uú]mero de Acta', 'Acta N[uú]mero'], ['Fecha de Registro', 'Municipio', 'Entidad']),
+    fechaRegistro: isoDate(pick(registrationSection, ['Fecha de Registro'], ['Municipio', 'Entidad', 'Oficial[ií]a'])),
+    municipioRegistro: pick(registrationSection, ['Municipio de Registro', 'Municipio'], ['Entidad de Registro', 'Entidad Federativa', 'Estado']),
+    entidadRegistro: pick(registrationSection, ['Entidad de Registro', 'Entidad Federativa', 'Estado'], ['Municipio', 'Oficial[ií]a', 'Libro']),
+  };
 }
 
 function csfData(text: string) {
@@ -195,7 +248,7 @@ function ineData(text: string) {
   return { nombres, apellidoPaterno, apellidoMaterno, nombre: clean([nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(' ')), domicilio, seccion, anioRegistro, vigencia, sexo: mrzIdentity?.[2] || '', fechaNacimiento: mrzBirth, numeroDocumento, idmex, cic, ocr };
 }
 
-function extract(text: string): NotaryExtractedData {
+function extract(text: string, indicatedType = ''): NotaryExtractedData {
   const upper = normalized(text);
   const curp = upper.match(/\b[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d\b/)?.[0] || '';
   const rfc = upper.match(/\b[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}\b/)?.[0] || '';
@@ -204,11 +257,13 @@ function extract(text: string): NotaryExtractedData {
   const birth = curp ? `${century}${curp.slice(4, 6)}-${curp.slice(6, 8)}-${curp.slice(8, 10)}` : '';
   const isCsf = upper.includes('CONSTANCIA DE SITUACION FISCAL') || upper.includes('DATOS DEL DOMICILIO REGISTRADO');
   const isIne = upper.includes('INSTITUTO NACIONAL ELECTORAL') || upper.includes('CREDENCIAL PARA VOTAR');
+  const isDeathCertificate = indicatedType === 'Acta de defunción' || upper.includes('ACTA DE DEFUNCION') || upper.includes('DATOS DE LA PERSONA FALLECIDA');
   const csf = isCsf ? csfData(text) : { nombre: '', domicilio: '' };
   const ine = isIne ? ineData(text) : { nombre: '', domicilio: '' };
+  const deathCertificate = isDeathCertificate ? deathCertificateData(text) : {};
   const nameMatch = text.match(/(?:NOMBRE(?:\s*\(S\))?|NOMBRE COMPLETO)\s*[:\-]?\s*([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ\s]{5,80})/i);
   const addressMatch = text.match(/(?:DOMICILIO|DOMICILIO FISCAL)\s*[:\-]?\s*([^\n]{8,160})/i);
-  return { ...ine, ...csf, nombre: csf.nombre || ine.nombre || clean(nameMatch?.[1] || ''), curp, rfc, domicilio: csf.domicilio || ine.domicilio || clean(addressMatch?.[1] || ''), fechaNacimiento: birth || ine.fechaNacimiento || '', sexo: ine.sexo || (curp ? curp.charAt(10) : ''), claveElector };
+  return { ...ine, ...csf, ...deathCertificate, nombre: deathCertificate.nombre || csf.nombre || ine.nombre || clean(nameMatch?.[1] || ''), curp: deathCertificate.curp || curp, rfc, domicilio: csf.domicilio || ine.domicilio || clean(addressMatch?.[1] || ''), fechaNacimiento: deathCertificate.fechaNacimiento || birth || ine.fechaNacimiento || '', sexo: deathCertificate.sexo || ine.sexo || (curp ? curp.charAt(10) : ''), claveElector };
 }
 
 function detectRole(text: string) {
@@ -235,5 +290,5 @@ export async function analyzeNotaryDocument(file: File, progress?: (message: str
   else if (file.type.startsWith('image/')) text = await ocrImage(file, progress);
   else if (extension === 'docx') { progress?.('Leyendo el documento Word localmente…'); text = await docxText(file); }
   const classification = expectedType ? { type: expectedType, confidence: 70 } : classify(text, file.name);
-  return { text, type: classification.type, role: detectRole(text), confidence: classification.confidence, data: extract(text) };
+  return { text, type: classification.type, role: detectRole(text), confidence: classification.confidence, data: extract(text, classification.type) };
 }
