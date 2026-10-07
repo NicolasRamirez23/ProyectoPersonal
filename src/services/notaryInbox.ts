@@ -63,7 +63,22 @@ export const notaryInboxApi = {
   },
   async analyzeWithAi(documentId: string) {
     const { data, error } = await supabase.functions.invoke('analyze-notary-document', { body: { documentId } });
-    if (error) throw new Error(error.message);
+    if (error) {
+      let detail = error.message;
+      const context = (error as { context?: Response }).context;
+      if (context) {
+        try {
+          const payload = await context.clone().json() as { message?: string; error?: string };
+          detail = payload.message || payload.error || detail;
+        } catch {
+          try { detail = (await context.text()).trim() || detail; } catch { /* La respuesta no incluía detalle legible. */ }
+        }
+      }
+      if (/failed to send a request|failed to fetch|networkerror/i.test(detail)) {
+        throw new Error('El testamento quedó guardado, pero la función de análisis no está disponible. Verifica que analyze-notary-document esté desplegada en este proyecto de Supabase y vuelve a intentar.');
+      }
+      throw new Error(detail);
+    }
     if (!data?.ok) throw new Error(data?.message || 'No se pudo analizar el documento con IA.');
     return data;
   },
