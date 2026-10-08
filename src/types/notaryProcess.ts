@@ -31,7 +31,7 @@ export interface NotaryExtractedData {
   estadoCivil?: string; ocupacion?: string; conyuge?: string; declarante?: string; codigoPostal?: string; regimenFiscal?: string;
   regimenesFiscales?: string[]; actividadesEconomicas?: string[]; idCif?: string;
   notario?: string; numeroNotaria?: string; numeroInstrumento?: string; fechaInstrumento?: string; lugarOtorgamiento?: string;
-  volumen?: string; herederos?: string[];
+  volumen?: string; herederos?: string[]; albacea?: string;
   [key: string]: string | string[] | undefined;
 }
 export interface NotaryInboxDocument {

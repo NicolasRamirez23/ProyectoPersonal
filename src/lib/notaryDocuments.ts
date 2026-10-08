@@ -11,6 +11,27 @@ const formatDate = (value: string) => {
 const safeFile = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
 export const downloadBlob = (blob: Blob, name: string) => { const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url); };
 
+const units = ['', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve'];
+const special: Record<number, string> = { 10: 'diez', 11: 'once', 12: 'doce', 13: 'trece', 14: 'catorce', 15: 'quince', 16: 'dieciséis', 17: 'diecisiete', 18: 'dieciocho', 19: 'diecinueve', 20: 'veinte', 21: 'veintiuno', 22: 'veintidós', 23: 'veintitrés', 24: 'veinticuatro', 25: 'veinticinco', 26: 'veintiséis', 27: 'veintisiete', 28: 'veintiocho', 29: 'veintinueve' };
+const hundreds = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos'];
+const belowThousand = (value: number): string => {
+  if (!value) return '';
+  if (value < 10) return units[value];
+  if (value < 30) return special[value];
+  if (value < 100) { const tens = ['', '', '', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa']; return `${tens[Math.floor(value / 10)]}${value % 10 ? ` y ${units[value % 10]}` : ''}`; }
+  if (value === 100) return 'cien';
+  return `${hundreds[Math.floor(value / 100)]}${value % 100 ? ` ${belowThousand(value % 100)}` : ''}`;
+};
+export const numberToSpanishWords = (input: string) => {
+  const normalized = input.replace(/[\s,._]/g, '');
+  if (!/^\d+$/.test(normalized)) return '';
+  const value = Number(normalized);
+  if (!Number.isSafeInteger(value) || value < 0 || value > 999999999) return '';
+  if (value === 0) return 'cero';
+  const millions = Math.floor(value / 1_000_000); const thousands = Math.floor((value % 1_000_000) / 1000); const rest = value % 1000;
+  return [millions ? (millions === 1 ? 'un millón' : `${belowThousand(millions)} millones`) : '', thousands ? (thousands === 1 ? 'mil' : `${belowThousand(thousands)} mil`) : '', belowThousand(rest)].filter(Boolean).join(' ');
+};
+
 const grammar = (data: NotarySearchOfficeData) => ({
   greet: data.authorityGender === 'F' ? 'saludarla' : 'saludarlo',
   mentioned: data.deceasedGender === 'F' ? 'mencionada señora' : 'mencionado señor',
@@ -83,6 +104,15 @@ export async function downloadNotarySearchOfficeDocx(data: NotarySearchOfficeDat
 export function downloadNotarySearchOfficePdf(data: NotarySearchOfficeData) { downloadBlob(createNotarySearchOfficePdf(data), `oficio-busqueda-${safeFile(data.deceasedName)}.pdf`); }
 
 const joinPeople = (people: string[]) => people.length < 2 ? (people[0] || '') : `${people.slice(0, -1).join(', ')} y ${people[people.length - 1]}`;
+export const formatRelatedPeople = (people: string[]) => {
+  if (people.length < 2) return joinPeople(people);
+  const split = people.map((name) => name.trim().split(/\s+/));
+  if (split.some((parts) => parts.length < 3)) return joinPeople(people);
+  const surnames = split[0].slice(-2).join(' ');
+  if (!split.every((parts) => parts.slice(-2).join(' ').toLocaleUpperCase('es-MX') === surnames.toLocaleUpperCase('es-MX'))) return joinPeople(people);
+  const givenNames = split.map((parts) => parts.slice(0, -2).join(' '));
+  return `${joinPeople(givenNames)}, ambos de apellidos ${surnames}`;
+};
 const registryGrammar = (data: NotaryPublicRegistrySearchData) => ({
   testator: data.deceasedGender === 'F' ? 'la testadora' : 'el testador',
   mentioned: data.deceasedGender === 'F' ? 'la mencionada señora' : 'el mencionado señor',
@@ -96,7 +126,7 @@ export function buildPublicRegistrySearchText(data: NotaryPublicRegistrySearchDa
   const instrumentWords = data.willInstrumentWords ? ` (${data.willInstrumentWords})` : '';
   const volumeWords = data.willVolumeWords ? ` (${data.willVolumeWords})` : '';
   const parentStatus = data.fatherDeceased && data.motherDeceased ? 'ambos ya finados' : `${data.fatherDeceased ? 'su padre ya finado' : 'su padre vive'} y ${data.motherDeceased ? 'su madre ya finada' : 'su madre vive'}`;
-  const first = `Hago saber a usted que, ante mí comparecieron ${joinPeople(data.heirNames)}, quienes manifiestan ser únicos y universales herederos en el testamento público abierto otorgado en el instrumento número ${data.willInstrument}${instrumentWords}, del volumen ${data.willVolume}${volumeWords}, de fecha ${formatDate(data.willDate)}, ante la fe de ${data.willNotaryName}, Notario Público número ${data.willNotaryNumber}, en ${data.willPlace}; asimismo, me exhiben el acta de defunción de ${words.author} de la referida memoria testamentaria.`;
+  const first = `Hago saber a usted que, ante mí comparecieron ${formatRelatedPeople(data.heirNames)}, quienes manifiestan ser únicos y universales herederos en el testamento público abierto otorgado en el instrumento número ${data.willInstrument}${instrumentWords}, del volumen ${data.willVolume}${volumeWords}, de fecha ${formatDate(data.willDate)}, ante la fe de ${data.willNotaryName}, Notario Público número ${data.willNotaryNumber}, en ${data.willPlace}; asimismo, me exhiben el acta de defunción de ${words.author} de la referida memoria testamentaria.`;
   const second = `Ruego a usted me informe si ${words.mentioned} elaboró alguna memoria testamentaria posterior a la mencionada en el párrafo anterior, en el entendido de que ${words.testator} era ${words.nationality}, ${words.origin} de ${data.birthCity}, ${data.birthState}, donde nació el ${formatDate(data.birthDate)}, de estado civil ${data.maritalStatus}${data.occupation ? `, de ocupación ${data.occupation}` : ''}, con último domicilio en ${data.fullAddress}, con Clave Única del Registro de Población ${data.curp}. Sus padres fueron ${data.fatherName} y ${data.motherName}, ${parentStatus}.`;
   return `${first}\n\n${second}`;
 }

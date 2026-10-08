@@ -61,7 +61,7 @@ export interface NotaryPublicRegistrySearchData {
   place: string; issueDate: string;
   authorityName: string; authorityTitle: string; authorityDepartment: string;
   deceasedName: string; deceasedGender: GrammaticalGender;
-  heirNames: string[];
+  heirNames: string[]; executorName: string;
   willInstrument: string; willInstrumentWords: string; willVolume: string; willVolumeWords: string;
   willDate: string; willNotaryName: string; willNotaryNumber: string; willPlace: string;
   nationality: string; birthCity: string; birthState: string; birthDate: string;
