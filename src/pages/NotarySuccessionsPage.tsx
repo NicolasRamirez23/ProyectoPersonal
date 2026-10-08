@@ -90,6 +90,12 @@ type ActorDocumentDraft = {
   roleProposal: string;
   confirmed: boolean;
 };
+type SourceDocumentKey = "death" | "will";
+type SourceDocumentDraft = {
+  file: File;
+  type: string;
+  confirmed: boolean;
+};
 
 export function NotarySuccessionsPage() {
   const [searchParams] = useSearchParams();
@@ -112,6 +118,12 @@ export function NotarySuccessionsPage() {
   const [actorProgress, setActorProgress] = useState<Record<number, string>>(
     {},
   );
+  const [sourceDocuments, setSourceDocuments] = useState<
+    Partial<Record<SourceDocumentKey, SourceDocumentDraft>>
+  >({});
+  const [sourceProgress, setSourceProgress] = useState<
+    Partial<Record<SourceDocumentKey, string>>
+  >({});
   const [saving, setSaving] = useState(false);
   const { notify } = useAlerts();
   const navigate = useNavigate();
@@ -235,6 +247,113 @@ export function NotarySuccessionsPage() {
       setActorProgress((current) => ({ ...current, [index]: "" }));
     }
   };
+  const addPersonFromDocument = (
+    fullName: string,
+    role: SuccessionPerson["role"],
+  ) => {
+    const name = fullName.trim().toUpperCase();
+    if (!name) return;
+    setPeople((current) => {
+      const exists = current.some(
+        (person) =>
+          [
+            person.client.nombres,
+            person.client.apellidoPaterno,
+            person.client.apellidoMaterno,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .trim()
+            .toUpperCase() === name,
+      );
+      if (exists) return current;
+      const person = emptyPerson(false);
+      return [
+        ...current,
+        { ...person, role, client: { ...person.client, nombres: name } },
+      ];
+    });
+  };
+  const uploadSourceDocument = async (key: SourceDocumentKey, file: File) => {
+    const expectedType = key === "death" ? "Acta de defunción" : "Testamento";
+    setSourceProgress((current) => ({
+      ...current,
+      [key]: "Leyendo documento…",
+    }));
+    try {
+      const analysis = await analyzeNotaryDocument(
+        file,
+        (message) =>
+          setSourceProgress((current) => ({ ...current, [key]: message })),
+        expectedType,
+      );
+      const found = analysis.data;
+      if (key === "death") {
+        setDeceased((current) => ({
+          ...current,
+          name: found.nombre || current.name,
+          gender: /^F/i.test(found.sexo || "") ? "F" : current.gender,
+          curp: found.curp || current.curp,
+          birthDate: found.fechaNacimiento || current.birthDate,
+          nationality: found.nacionalidad || current.nationality,
+          maritalStatus: found.estadoCivil || current.maritalStatus,
+          occupation: found.ocupacion || current.occupation,
+          deathDate: found.fechaDefuncion || current.deathDate,
+          deathPlace: found.lugarDefuncion || current.deathPlace,
+          deathCertificate:
+            [
+              found.numeroActa && `Acta ${found.numeroActa}`,
+              found.libro && `Libro ${found.libro}`,
+              found.oficialia && `Oficialía ${found.oficialia}`,
+            ]
+              .filter(Boolean)
+              .join(", ") || current.deathCertificate,
+        }));
+      } else {
+        setDeceased((current) => ({
+          ...current,
+          name: found.nombre || current.name,
+          curp: found.curp || current.curp,
+          birthDate: found.fechaNacimiento || current.birthDate,
+          birthPlace: found.lugarNacimiento || current.birthPlace,
+          nationality: found.nacionalidad || current.nationality,
+          maritalStatus: found.estadoCivil || current.maritalStatus,
+          occupation: found.ocupacion || current.occupation,
+          address: found.domicilio || current.address,
+        }));
+        setWill((current) => ({
+          ...current,
+          instrument: found.numeroInstrumento || current.instrument,
+          volume: found.volumen || current.volume,
+          date: found.fechaInstrumento || current.date,
+          notary: found.notario || current.notary,
+          notaryNumber: found.numeroNotaria || current.notaryNumber,
+          place: found.lugarOtorgamiento || current.place,
+        }));
+        (found.herederos || []).forEach((name) =>
+          addPersonFromDocument(name, "heredero"),
+        );
+        if (found.albacea) addPersonFromDocument(found.albacea, "albacea");
+      }
+      setSourceDocuments((current) => ({
+        ...current,
+        [key]: { file, type: expectedType, confirmed: false },
+      }));
+      notify(
+        "success",
+        "Información propuesta",
+        "Se llenaron los campos encontrados. Revísalos contra el original y confirma el cotejo.",
+      );
+    } catch (error) {
+      notify(
+        "error",
+        "No se pudo leer el documento",
+        error instanceof Error ? error.message : "Intenta con otro archivo.",
+      );
+    } finally {
+      setSourceProgress((current) => ({ ...current, [key]: "" }));
+    }
+  };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (
@@ -246,6 +365,16 @@ export function NotarySuccessionsPage() {
         "warning",
         "Falta cotejar actores",
         "Revisa los datos y confirma el rol propuesto de cada documento cargado.",
+      );
+    if (
+      (Object.values(sourceDocuments) as SourceDocumentDraft[]).some(
+        (document) => !document.confirmed,
+      )
+    )
+      return notify(
+        "warning",
+        "Falta cotejar documentos fuente",
+        "Confirma la información propuesta del acta y del testamento antes de crear el expediente.",
       );
     if (
       !people.length ||
@@ -278,6 +407,30 @@ export function NotarySuccessionsPage() {
         people,
       });
       let pendingActorDocuments = 0;
+      const principalClientId =
+        result.participants.find(
+          (participant) =>
+            people[result.participants.indexOf(participant)]?.principal,
+        )?.clientId || result.participants[0]?.clientId;
+      for (const source of Object.values(
+        sourceDocuments,
+      ) as SourceDocumentDraft[]) {
+        if (!principalClientId) continue;
+        try {
+          const document = await notaryInboxApi.upload(
+            { id: result.caseId, clientId: principalClientId },
+            source.file,
+            source.type,
+          );
+          try {
+            await notaryInboxApi.analyzeWithAi(document.id);
+          } catch {
+            // El original ya está dentro del expediente.
+          }
+        } catch {
+          pendingActorDocuments += 1;
+        }
+      }
       for (const [position, source] of Object.entries(actorDocuments) as [
         string,
         ActorDocumentDraft,
@@ -408,23 +561,31 @@ export function NotarySuccessionsPage() {
       </div>
       <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
         <p className="text-xs font-bold uppercase tracking-widest text-blue-600">
-          Plantilla activa
+          Flujo de la plantilla
         </p>
         <h2 className="mt-1 text-lg font-bold text-blue-950">
           Búsqueda de sucesión
         </h2>
         <p className="mt-1 text-sm text-blue-800">
-          Al crear el expediente quedarán preparados estos controles bajo un
-          solo folio.
+          Primero carga las fuentes, después coteja la información y finalmente
+          genera los formatos notariales bajo un solo folio.
         </p>
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           {[
-            ["1", "Documento base", "Testamento o acta, según la vía"],
-            ["2", "Registro Público", "Generar o subir solicitud y respuesta"],
+            [
+              "1",
+              "Cargar fuentes",
+              "Acta de defunción, testamento e identificaciones de los actores",
+            ],
+            [
+              "2",
+              "Cotejar información",
+              "Revisar datos, relaciones y roles propuestos por el sistema",
+            ],
             [
               "3",
-              "Archivo de Notarías",
-              "Generar o subir solicitud y respuesta",
+              "Generar formatos",
+              "Registro Público, Archivo de Notarías y proyecto de radicación",
             ],
           ].map(([number, title, detail]) => (
             <div
@@ -499,7 +660,22 @@ export function NotarySuccessionsPage() {
           </div>
         </div>
       </Section>
-      <Section title="2. Autor de la sucesión">
+      <Section title="2. Documento fuente: acta de defunción">
+        <SourceUpload
+          title="Sube el acta de defunción"
+          detail="De aquí se propone la identidad de la persona fallecida, fechas, lugar y datos registrales que utilizarán los formatos."
+          document={sourceDocuments.death}
+          progress={sourceProgress.death}
+          onUpload={(file) => void uploadSourceDocument("death", file)}
+          onConfirm={() =>
+            setSourceDocuments((current) => ({
+              ...current,
+              death: current.death
+                ? { ...current.death, confirmed: true }
+                : undefined,
+            }))
+          }
+        />
         <div className="grid gap-4 md:grid-cols-3">
           <Input
             required
@@ -603,7 +779,22 @@ export function NotarySuccessionsPage() {
         </div>
       </Section>
       {route === "testamentaria" && (
-        <Section title="3. Testamento">
+        <Section title="3. Documento fuente: testamento">
+          <SourceUpload
+            title="Sube el testamento"
+            detail="Se proponen instrumento, volumen, fecha, notario, testador, herederos y albacea. Cada persona seguirá siendo editable y deberá cotejarse."
+            document={sourceDocuments.will}
+            progress={sourceProgress.will}
+            onUpload={(file) => void uploadSourceDocument("will", file)}
+            onConfirm={() =>
+              setSourceDocuments((current) => ({
+                ...current,
+                will: current.will
+                  ? { ...current.will, confirmed: true }
+                  : undefined,
+              }))
+            }
+          />
           <div className="grid gap-4 md:grid-cols-3">
             <Input
               required
@@ -661,7 +852,7 @@ export function NotarySuccessionsPage() {
         </Section>
       )}
       <Section
-        title={`${route === "testamentaria" ? "4" : "3"}. Generales de interesados`}
+        title={`${route === "testamentaria" ? "4" : "3"}. Documentos y generales de los actores`}
       >
         <div className="space-y-4">
           {people.map((person, index) => (
@@ -920,6 +1111,11 @@ export function NotarySuccessionsPage() {
         </div>
       </Section>
       <div className="flex justify-end gap-3">
+        <div className="mr-auto max-w-xl rounded-xl bg-slate-100 px-4 py-3 text-xs leading-5 text-slate-600">
+          Al crear el expediente se habilitarán los tres entregables: solicitud
+          al Registro Público, solicitud al Archivo de Notarías y proyecto de
+          escritura de radicación. Los datos cotejados alimentarán los tres.
+        </div>
         <button
           type="button"
           onClick={() => setCreating(false)}
@@ -935,6 +1131,73 @@ export function NotarySuccessionsPage() {
         </button>
       </div>
     </form>
+  );
+}
+function SourceUpload({
+  title,
+  detail,
+  document,
+  progress,
+  onUpload,
+  onConfirm,
+}: {
+  title: string;
+  detail: string;
+  document?: SourceDocumentDraft;
+  progress?: string;
+  onUpload: (file: File) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="mb-5 rounded-xl border border-dashed border-blue-300 bg-blue-50 p-4">
+      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+        <div>
+          <p className="text-sm font-bold text-blue-950">{title}</p>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-blue-700">
+            {detail}
+          </p>
+        </div>
+        <label className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white">
+          <Upload className="h-4 w-4" />
+          {progress
+            ? "Leyendo…"
+            : document
+              ? "Cambiar archivo"
+              : "Subir y obtener datos"}
+          <input
+            hidden
+            type="file"
+            accept=".pdf,.docx,image/png,image/jpeg,image/webp"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) onUpload(file);
+            }}
+          />
+        </label>
+      </div>
+      {progress ? (
+        <p className="mt-3 text-xs font-medium text-blue-700">{progress}</p>
+      ) : null}
+      {document ? (
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-white p-3 text-xs">
+          <span className="inline-flex items-center gap-1 font-bold text-emerald-700">
+            <FileCheck2 className="h-4 w-4" />
+            {document.file.name}
+          </span>
+          <span className="text-slate-500">
+            Revisa los campos inferiores contra el documento original.
+          </span>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={`ml-auto rounded-lg px-3 py-2 font-bold text-white ${document.confirmed ? "bg-emerald-600" : "bg-slate-900"}`}
+          >
+            {document.confirmed ? "✓ Información cotejada" : "Confirmar cotejo"}
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 function Section({ title, children }: { title: string; children: ReactNode }) {
