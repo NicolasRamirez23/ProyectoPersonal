@@ -41,6 +41,9 @@ export interface NotarySearchOfficeData {
   signerName: string;
   signerTitle: string;
   legalBasis: string;
+  caseId?: string;
+  sourceDocumentId?: string;
+  sourceFileName?: string;
 }
 
 export interface NotaryStoredDocument {
