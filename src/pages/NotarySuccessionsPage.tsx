@@ -13,7 +13,6 @@ import { useAlerts } from "../components/AlertProvider";
 import { notaryProcessesApi } from "../services/notaryProcesses";
 import { notaryInboxApi } from "../services/notaryInbox";
 import { notarySuccessionsApi } from "../services/notarySuccessions";
-import { analyzeNotaryDocument } from "../lib/notaryLocalExtraction";
 import type {
   NotarySuccession,
   SuccessionPerson,
@@ -180,11 +179,11 @@ export function NotarySuccessionsPage() {
       [index]: "Leyendo documento…",
     }));
     try {
-      const analysis = await analyzeNotaryDocument(
+      const analysis = await notaryInboxApi.analyzeDraftWithAi(
         file,
+        expectedType,
         (message) =>
           setActorProgress((current) => ({ ...current, [index]: message })),
-        expectedType,
       );
       const found = analysis.data;
       setPeople((current) =>
@@ -281,11 +280,11 @@ export function NotarySuccessionsPage() {
       [key]: "Leyendo documento…",
     }));
     try {
-      const analysis = await analyzeNotaryDocument(
+      const analysis = await notaryInboxApi.analyzeDraftWithAi(
         file,
+        expectedType,
         (message) =>
           setSourceProgress((current) => ({ ...current, [key]: message })),
-        expectedType,
       );
       const found = analysis.data;
       if (key === "death") {
@@ -329,6 +328,8 @@ export function NotarySuccessionsPage() {
           notary: found.notario || current.notary,
           notaryNumber: found.numeroNotaria || current.notaryNumber,
           place: found.lugarOtorgamiento || current.place,
+          mainDisposition:
+            found.disposicionPrincipal || current.mainDisposition,
         }));
         (found.herederos || []).forEach((name) =>
           addPersonFromDocument(name, "heredero"),

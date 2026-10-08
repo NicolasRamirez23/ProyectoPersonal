@@ -103,6 +103,7 @@ const responseSchema = {
         volumen: { type: "STRING" },
         herederos: { type: "ARRAY", items: { type: "STRING" } },
         albacea: { type: "STRING" },
+        disposicionPrincipal: { type: "STRING" },
         folioOficio: { type: "STRING" },
         fechaOficio: { type: "STRING" },
         resultadoBusqueda: { type: "STRING" },
@@ -133,7 +134,7 @@ const fieldsByType: Record<string, string> = {
   "Comprobante de domicilio":
     "nombre, domicilio, codigoPostal y numeroDocumento",
   Testamento:
-    "nombre completo del testador en nombre; además nombres, apellidoPaterno y apellidoMaterno; sexo, curp, nacionalidad, fechaNacimiento, lugarNacimiento, ciudadNacimiento, estadoNacimiento, estadoCivil, domicilio, ocupacion, nombrePadre, nombreMadre, numeroInstrumento, volumen, fechaInstrumento, notario, numeroNotaria, lugarOtorgamiento; únicamente las personas expresamente instituidas como herederas o legatarias en herederos; y la persona nombrada albacea en albacea",
+    "nombre completo del testador en nombre; además nombres, apellidoPaterno y apellidoMaterno; sexo, curp, nacionalidad, fechaNacimiento, lugarNacimiento, ciudadNacimiento, estadoNacimiento, estadoCivil, domicilio, ocupacion, nombrePadre, nombreMadre, numeroInstrumento, volumen, fechaInstrumento, notario, numeroNotaria, lugarOtorgamiento; únicamente las personas expresamente instituidas como herederas o legatarias en herederos; la persona nombrada albacea en albacea; y el texto literal de la cláusula dispositiva principal en disposicionPrincipal",
   Poder:
     "nombre del poderdante, numeroDocumento para el apoderado, numeroInstrumento, fechaInstrumento, notario y numeroNotaria",
   Escritura:
@@ -271,17 +272,39 @@ export default async function handler(
     const {
       documentId,
       requirementId,
+      transientDocument,
       force = false,
     } = (parsedBody || {}) as {
       documentId?: string;
       requirementId?: string;
+      transientDocument?: {
+        name: string;
+        mimeType: string;
+        expectedType: string;
+        base64?: string;
+        extractedText?: string;
+      };
       force?: boolean;
     };
-    if (!documentId && !requirementId)
+    if (!documentId && !requirementId && !transientDocument)
       throw new Error("Documento no especificado.");
+    if (transientDocument?.base64 && transientDocument.base64.length > 3_600_000)
+      throw new Error("El archivo temporal supera el límite seguro de análisis visual.");
     let document: any;
     const persistentDocument = !!documentId;
-    if (documentId) {
+    if (transientDocument) {
+      document = {
+        id: "vista-previa",
+        nombre_archivo: transientDocument.name,
+        mime_type: transientDocument.mimeType,
+        texto_extraido: transientDocument.extractedText || "",
+        archivo_base64: transientDocument.base64 || "",
+        tipo_indicado: transientDocument.expectedType || "Otro",
+        estado: "por_revisar",
+        analizado_con_ia: false,
+        datos_extraidos: {},
+      };
+    } else if (documentId) {
       const result = await supabase
         .from("notaria_documentos_expediente")
         .select(
@@ -362,16 +385,17 @@ export default async function handler(
         throw new Error(
           "Este archivo no contiene texto legible. Convierte el documento a PDF o imagen para analizarlo visualmente.",
         );
-      const { data: original, error: downloadError } = await supabase.storage
-        .from("expedientes-notaria")
-        .download(document.ruta);
-      if (downloadError || !original)
-        throw new Error(
-          "No se pudo abrir el original privado para el análisis visual.",
-        );
-      const encoded = Buffer.from(await original.arrayBuffer()).toString(
-        "base64",
-      );
+      let encoded = document.archivo_base64 || "";
+      if (!encoded) {
+        const { data: original, error: downloadError } = await supabase.storage
+          .from("expedientes-notaria")
+          .download(document.ruta);
+        if (downloadError || !original)
+          throw new Error(
+            "No se pudo abrir el original privado para el análisis visual.",
+          );
+        encoded = Buffer.from(await original.arrayBuffer()).toString("base64");
+      }
       parts = [
         { inlineData: { mimeType: document.mime_type, data: encoded } },
         { text: instructions },
@@ -403,6 +427,8 @@ export default async function handler(
         "numeroNotaria",
         "lugarOtorgamiento",
         "herederos",
+        "albacea",
+        "disposicionPrincipal",
       ];
     const vertexController = new AbortController();
     const vertexTimeout = setTimeout(() => vertexController.abort(), 210_000);
@@ -493,6 +519,9 @@ export default async function handler(
       ok: true,
       documentId: document.id,
       extractedData: extracted,
+      documentType: output.tipoDocumento || document.tipo_indicado || "Otro",
+      detectedRole: output.rolPersona || "",
+      confidence: Math.max(0, Math.min(100, Number(output.confianza) || 0)),
       warnings: output.advertencias || [],
     });
   } catch (error) {

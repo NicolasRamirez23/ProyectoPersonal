@@ -17,6 +17,55 @@ async function audit(documentId: string, action: string, detail: Record<string, 
 }
 
 export const notaryInboxApi = {
+  async analyzeDraftWithAi(file: File, expectedType: string, progress?: (message: string) => void) {
+    progress?.('Preparando el documento para la lectura con IA…');
+    const visual = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(file.type);
+    const sendOriginal = visual && file.size <= 2.5 * 1024 * 1024;
+    const local = sendOriginal
+      ? { text: '', type: expectedType, role: '', confidence: 0, data: {} as NotaryExtractedData }
+      : await analyzeNotaryDocument(file, progress, expectedType);
+    let base64 = '';
+    if (sendOriginal) {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = '';
+      const chunk = 0x8000;
+      for (let offset = 0; offset < bytes.length; offset += chunk)
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + chunk));
+      base64 = btoa(binary);
+    }
+    if (!base64 && local.text.trim().length < 30)
+      throw new Error('El archivo no tiene texto suficiente y supera el tamaño para análisis visual. Reduce el archivo a menos de 2.5 MB o usa un escaneo más nítido.');
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error('Tu sesión expiró. Inicia sesión nuevamente.');
+    progress?.('La IA está identificando datos y relaciones…');
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 240_000);
+    try {
+      const response = await fetch('/api/analyze-notary-document', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transientDocument: { name: file.name, mimeType: file.type, expectedType, base64, extractedText: base64 ? '' : local.text.slice(0, 100000) } }),
+        signal: controller.signal,
+      });
+      const result = await response.json().catch(() => ({ message: 'La función devolvió una respuesta no válida.' }));
+      if (!response.ok || !result?.ok) throw new Error(result?.message || 'No se pudo analizar el documento con IA.');
+      return {
+        text: local.text,
+        type: result.documentType || expectedType,
+        role: result.detectedRole || '',
+        confidence: Number(result.confidence || 0),
+        data: (result.extractedData || {}) as NotaryExtractedData,
+        warnings: (result.warnings || []) as string[],
+      };
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError')
+        throw new Error('El análisis tardó demasiado. Intenta nuevamente con un archivo más ligero.');
+      throw error;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  },
   async cases() {
     const { data, error } = await supabase.from('notaria_expedientes').select('id, folio, titulo, cliente_id').neq('estatus', 'cancelado').order('created_at', { ascending: false });
     if (error) throw new Error(error.message); return data || [];
