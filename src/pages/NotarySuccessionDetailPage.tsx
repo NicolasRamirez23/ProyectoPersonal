@@ -38,6 +38,7 @@ export function NotarySuccessionDetailPage() {
   const [evidenceFiles, setEvidenceFiles] = useState<Record<string, string>>(
     {},
   );
+  const [requestFiles, setRequestFiles] = useState<Record<string, string>>({});
   const { notify } = useAlerts();
   const load = async () => {
     try {
@@ -237,6 +238,48 @@ export function NotarySuccessionDetailPage() {
       notify(
         "error",
         "No se pudo generar la solicitud",
+        error instanceof Error ? error.message : "Intenta nuevamente.",
+      );
+    } finally {
+      setSaving("");
+    }
+  };
+  const uploadPreparedSearchRequest = async (
+    search: SuccessionSearch,
+    file: File,
+  ) => {
+    if (!item) return;
+    setSaving(search.id);
+    try {
+      await notaryInboxApi.upload(
+        { id: item.caseId, clientId: item.case.client.id },
+        file,
+        search.authority === "registro_publico"
+          ? "Solicitud de búsqueda registral"
+          : "Solicitud de búsqueda notarial",
+      );
+      await notarySuccessionsApi.updateSearch(search.id, {
+        status: "enviada",
+        requestDate: search.requestDate || today,
+        requestFolio: search.requestFolio,
+        responseDate: search.responseDate || "",
+        responseFolio: search.responseFolio,
+        result: search.result,
+      });
+      setRequestFiles((current) => ({
+        ...current,
+        [search.id]: file.name,
+      }));
+      await load();
+      notify(
+        "success",
+        "Solicitud guardada",
+        "El formato preparado quedó asociado al expediente.",
+      );
+    } catch (error) {
+      notify(
+        "error",
+        "No se pudo guardar la solicitud",
         error instanceof Error ? error.message : "Intenta nuevamente.",
       );
     } finally {
@@ -560,6 +603,33 @@ export function NotarySuccessionDetailPage() {
                     ? "Guardando…"
                     : "Generar, guardar y descargar"}
                 </button>
+              </div>
+              <div className="mt-3 rounded-lg bg-slate-50 p-3">
+                <p className="text-xs text-slate-500">
+                  Puedes generar la solicitud con la plantilla de la notaría o
+                  subir un formato que ya tengas preparado.
+                </p>
+                <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed bg-white p-2 text-xs font-bold text-blue-600">
+                  <Upload className="h-3.5 w-3.5" />
+                  {saving === search.id
+                    ? "Guardando solicitud…"
+                    : "Subir solicitud ya elaborada"}
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = "";
+                      if (file) void uploadPreparedSearchRequest(search, file);
+                    }}
+                  />
+                </label>
+                {requestFiles[search.id] ? (
+                  <p className="mt-2 truncate text-xs font-medium text-emerald-700">
+                    Solicitud archivada: {requestFiles[search.id]}
+                  </p>
+                ) : null}
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <label className="text-xs font-medium">

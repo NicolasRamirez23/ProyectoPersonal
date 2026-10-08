@@ -272,6 +272,46 @@ export function NotarySuccessionsPage() {
         </button>
         <h1 className="mt-3 text-3xl font-bold">Nueva sucesión</h1>
       </div>
+      <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+        <p className="text-xs font-bold uppercase tracking-widest text-blue-600">
+          Plantilla activa
+        </p>
+        <h2 className="mt-1 text-lg font-bold text-blue-950">
+          Búsqueda de sucesión
+        </h2>
+        <p className="mt-1 text-sm text-blue-800">
+          Al crear el expediente quedarán preparados estos controles bajo un
+          solo folio.
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {[
+            ["1", "Documento base", "Testamento o acta, según la vía"],
+            ["2", "Registro Público", "Generar o subir solicitud y respuesta"],
+            [
+              "3",
+              "Archivo de Notarías",
+              "Generar o subir solicitud y respuesta",
+            ],
+          ].map(([number, title, detail]) => (
+            <div
+              key={number}
+              className="rounded-xl border border-blue-200 bg-white p-4"
+            >
+              <div className="flex items-start gap-3">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+                  {number}
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-slate-900">{title}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    {detail}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
       <Section title="1. Vía y expediente">
         <div className="grid gap-4 md:grid-cols-2">
           <label className="text-sm font-medium">
