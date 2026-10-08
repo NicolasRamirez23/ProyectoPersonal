@@ -1,100 +1,986 @@
-import { useEffect, useState, type ChangeEvent, type MouseEvent, type ReactNode } from 'react';
-import { ArrowLeft, Download, FileCheck2, FileText, RefreshCw, ShieldCheck, Upload } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { Input } from '../components/Input';
-import { useAlerts } from '../components/AlertProvider';
-import { buildNotarySearchOfficeText, downloadBlob } from '../lib/notaryDocuments';
-import { notaryDocumentsApi } from '../services/notaryDocuments';
-import { notaryInboxApi } from '../services/notaryInbox';
-import type { NotarySearchOfficeData, NotaryStoredDocument } from '../types/notary';
+import {
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
+import {
+  ArrowLeft,
+  Download,
+  FileCheck2,
+  FileText,
+  RefreshCw,
+  ShieldCheck,
+  Upload,
+} from "lucide-react";
+import { Link } from "react-router-dom";
+import { Input } from "../components/Input";
+import { useAlerts } from "../components/AlertProvider";
+import {
+  buildNotarySearchOfficeText,
+  downloadBlob,
+} from "../lib/notaryDocuments";
+import { notaryDocumentsApi } from "../services/notaryDocuments";
+import { notaryInboxApi } from "../services/notaryInbox";
+import type {
+  NotarySearchOfficeData,
+  NotaryStoredDocument,
+} from "../types/notary";
 
 const today = new Date().toISOString().slice(0, 10);
 const initialData: NotarySearchOfficeData = {
-  place: 'La Paz, B.C.S.', issueDate: today,
-  authorityName: 'LIC. SONIA GUADALUPE CORRAL DOMÍNGUEZ', authorityTitle: 'DIRECTORA DEL ARCHIVO GENERAL DE NOTARÍAS', authorityDepartment: 'DEL ESTADO DE BAJA CALIFORNIA SUR', authorityGender: 'F',
-  radicationInstrument: '', radicationVolume: '', radicationDate: '', deceasedName: '', deceasedGender: 'M',
-  willInstrument: '', willVolume: '', willNotaryName: '', willNotaryNumber: '', willPlace: 'La Paz, Baja California Sur', willDate: '',
-  nationality: 'mexicano', birthCity: '', birthState: '', birthDate: '', maritalStatus: '', occupation: '',
-  street: '', exteriorNumber: '', interiorNumber: '', neighborhood: '', postalCode: '', city: 'La Paz', state: 'Baja California Sur',
-  curp: '', rfc: '', ineFolio: '', fatherName: '', fatherDeceased: true, motherName: '', motherDeceased: true,
-  signerName: 'LIC. ALEJANDRO DAVIS MONZÓN', signerTitle: 'NOTARIO PÚBLICO No. DOS', legalBasis: 'lo dispuesto por el artículo 750 del Código de Procedimientos Civiles vigente en la entidad',
+  place: "La Paz, B.C.S.",
+  issueDate: today,
+  authorityName: "LIC. SONIA GUADALUPE CORRAL DOMÍNGUEZ",
+  authorityTitle: "DIRECTORA DEL ARCHIVO GENERAL DE NOTARÍAS",
+  authorityDepartment: "DEL ESTADO DE BAJA CALIFORNIA SUR",
+  authorityGender: "F",
+  radicationInstrument: "",
+  radicationVolume: "",
+  radicationDate: "",
+  deceasedName: "",
+  deceasedGender: "M",
+  willInstrument: "",
+  willVolume: "",
+  willNotaryName: "",
+  willNotaryNumber: "",
+  willPlace: "La Paz, Baja California Sur",
+  willDate: "",
+  nationality: "mexicano",
+  birthCity: "",
+  birthState: "",
+  birthDate: "",
+  maritalStatus: "",
+  occupation: "",
+  street: "",
+  exteriorNumber: "",
+  interiorNumber: "",
+  neighborhood: "",
+  postalCode: "",
+  city: "La Paz",
+  state: "Baja California Sur",
+  curp: "",
+  rfc: "",
+  ineFolio: "",
+  fatherName: "",
+  fatherDeceased: true,
+  motherName: "",
+  motherDeceased: true,
+  signerName: "LIC. ALEJANDRO DAVIS MONZÓN",
+  signerTitle: "NOTARIO PÚBLICO No. DOS",
+  legalBasis:
+    "lo dispuesto por el artículo 750 del Código de Procedimientos Civiles vigente en la entidad",
 };
 
 export function NotarySearchOfficePage() {
-  const [data, setData] = useState(initialData); const [preview, setPreview] = useState(false); const [saving, setSaving] = useState(false); const [savedDocument, setSavedDocument] = useState<NotaryStoredDocument | null>(null); const [savedSnapshot, setSavedSnapshot] = useState(''); const { notify } = useAlerts();
-  const [cases, setCases] = useState<any[]>([]); const [caseId, setCaseId] = useState(''); const [analyzing, setAnalyzing] = useState(false); const [analysisProgress, setAnalysisProgress] = useState('');
-  const set = <K extends keyof NotarySearchOfficeData>(key: K, value: NotarySearchOfficeData[K]) => setData((current) => ({ ...current, [key]: value }));
-  useEffect(() => { notaryInboxApi.cases().then((rows) => { setCases(rows); if (rows[0]) setCaseId(rows[0].id); }).catch((error) => notify('error', 'No se pudieron cargar los expedientes', error.message)); }, []);
+  const [data, setData] = useState(initialData);
+  const [preview, setPreview] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedDocument, setSavedDocument] =
+    useState<NotaryStoredDocument | null>(null);
+  const [savedSnapshot, setSavedSnapshot] = useState("");
+  const { notify } = useAlerts();
+  const [cases, setCases] = useState<any[]>([]);
+  const [caseId, setCaseId] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState("");
+  const [sectionSources, setSectionSources] = useState<Record<string, string>>(
+    {},
+  );
+  const set = <K extends keyof NotarySearchOfficeData>(
+    key: K,
+    value: NotarySearchOfficeData[K],
+  ) => setData((current) => ({ ...current, [key]: value }));
+  useEffect(() => {
+    notaryInboxApi
+      .cases()
+      .then((rows) => {
+        setCases(rows);
+        if (rows[0]) setCaseId(rows[0].id);
+      })
+      .catch((error) =>
+        notify("error", "No se pudieron cargar los expedientes", error.message),
+      );
+  }, []);
 
-  const applyTestamentData = (found: Record<string, unknown>, source?: { id: string; fileName: string; caseId: string }) => {
-    const text = (key: string) => typeof found[key] === 'string' ? String(found[key]).trim() : '';
-    const completeName = text('nombre') || [text('nombres'), text('apellidoPaterno'), text('apellidoMaterno')].filter(Boolean).join(' ');
-    const birthPlace = text('lugarNacimiento').split(',').map((part) => part.trim()).filter(Boolean);
-    setData((current) => ({ ...current,
-      caseId: source?.caseId || current.caseId, sourceDocumentId: source?.id || current.sourceDocumentId, sourceFileName: source?.fileName || current.sourceFileName,
-      willInstrument: text('numeroInstrumento') || current.willInstrument,
-      willVolume: text('volumen') || current.willVolume,
-      willNotaryName: text('notario').toUpperCase() || current.willNotaryName,
-      willNotaryNumber: text('numeroNotaria') || current.willNotaryNumber,
-      willPlace: text('lugarOtorgamiento') || current.willPlace,
-      willDate: text('fechaInstrumento') || current.willDate,
+  const applyTestamentData = (
+    found: Record<string, unknown>,
+    source?: { id: string; fileName: string; caseId: string },
+  ) => {
+    const text = (key: string) =>
+      typeof found[key] === "string" ? String(found[key]).trim() : "";
+    const completeName =
+      text("nombre") ||
+      [text("nombres"), text("apellidoPaterno"), text("apellidoMaterno")]
+        .filter(Boolean)
+        .join(" ");
+    const birthPlace = text("lugarNacimiento")
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    setData((current) => ({
+      ...current,
+      caseId: source?.caseId || current.caseId,
+      sourceDocumentId: source?.id || current.sourceDocumentId,
+      sourceFileName: source?.fileName || current.sourceFileName,
+      willInstrument: text("numeroInstrumento") || current.willInstrument,
+      willVolume: text("volumen") || current.willVolume,
+      willNotaryName: text("notario").toUpperCase() || current.willNotaryName,
+      willNotaryNumber: text("numeroNotaria") || current.willNotaryNumber,
+      willPlace: text("lugarOtorgamiento") || current.willPlace,
+      willDate: text("fechaInstrumento") || current.willDate,
       deceasedName: completeName.toUpperCase() || current.deceasedName,
-      deceasedGender: text('sexo') === 'H' ? 'M' : text('sexo') === 'M' ? 'F' : current.deceasedGender,
-      nationality: text('nacionalidad').toLowerCase() || current.nationality,
-      birthCity: text('ciudadNacimiento') || birthPlace[0] || current.birthCity,
-      birthState: text('estadoNacimiento') || birthPlace.at(-1) || current.birthState,
-      birthDate: text('fechaNacimiento') || current.birthDate,
-      maritalStatus: text('estadoCivil').toLowerCase() || current.maritalStatus,
-      occupation: text('ocupacion') || current.occupation,
-      curp: text('curp').toUpperCase() || current.curp,
-      rfc: text('rfc').toUpperCase() || current.rfc,
-      fatherName: text('nombrePadre').toUpperCase() || current.fatherName,
-      motherName: text('nombreMadre').toUpperCase() || current.motherName,
+      deceasedGender:
+        text("sexo") === "H"
+          ? "M"
+          : text("sexo") === "M"
+            ? "F"
+            : current.deceasedGender,
+      nationality: text("nacionalidad").toLowerCase() || current.nationality,
+      birthCity: text("ciudadNacimiento") || birthPlace[0] || current.birthCity,
+      birthState:
+        text("estadoNacimiento") || birthPlace.at(-1) || current.birthState,
+      birthDate: text("fechaNacimiento") || current.birthDate,
+      maritalStatus: text("estadoCivil").toLowerCase() || current.maritalStatus,
+      occupation: text("ocupacion") || current.occupation,
+      curp: text("curp").toUpperCase() || current.curp,
+      rfc: text("rfc").toUpperCase() || current.rfc,
+      fatherName: text("nombrePadre").toUpperCase() || current.fatherName,
+      motherName: text("nombreMadre").toUpperCase() || current.motherName,
     }));
   };
 
-  const analyzeStoredTestament = async (documentId: string, source?: { id: string; fileName: string; caseId: string }) => {
-    setAnalysisProgress('Analizando el testamento con IA empresarial…');
+  const analyzeStoredTestament = async (
+    documentId: string,
+    source?: { id: string; fileName: string; caseId: string },
+  ) => {
+    setAnalysisProgress("Analizando el testamento con IA empresarial…");
     const result = await notaryInboxApi.analyzeWithAi(documentId, true);
     applyTestamentData(result.extractedData || {}, source);
   };
 
   const uploadTestament = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]; event.target.value = ''; const selectedCase = cases.find((item) => item.id === caseId);
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    const selectedCase = cases.find((item) => item.id === caseId);
     if (!file || !selectedCase) return;
     setAnalyzing(true);
     try {
-      const document = await notaryInboxApi.upload({ id: selectedCase.id, clientId: selectedCase.cliente_id }, file, 'Testamento', setAnalysisProgress);
-      const source = { id: document.id, fileName: document.fileName, caseId: document.caseId };
+      const document = await notaryInboxApi.upload(
+        { id: selectedCase.id, clientId: selectedCase.cliente_id },
+        file,
+        "Testamento",
+        setAnalysisProgress,
+      );
+      const source = {
+        id: document.id,
+        fileName: document.fileName,
+        caseId: document.caseId,
+      };
       applyTestamentData(document.extractedData, source);
       await analyzeStoredTestament(document.id, source);
-      notify('success', 'Testamento analizado', 'Los datos encontrados se agregaron como propuesta. Revísalos antes de generar el oficio.');
-    } catch (error) { notify('error', 'No se pudo procesar el testamento', error instanceof Error ? error.message : 'Intenta nuevamente.'); }
-    finally { setAnalyzing(false); setAnalysisProgress(''); }
+      notify(
+        "success",
+        "Testamento analizado",
+        "Los datos encontrados se agregaron como propuesta. Revísalos antes de generar el oficio.",
+      );
+    } catch (error) {
+      notify(
+        "error",
+        "No se pudo procesar el testamento",
+        error instanceof Error ? error.message : "Intenta nuevamente.",
+      );
+    } finally {
+      setAnalyzing(false);
+      setAnalysisProgress("");
+    }
   };
 
   const retryTestament = async () => {
     if (!data.sourceDocumentId) return;
     setAnalyzing(true);
-    try { await analyzeStoredTestament(data.sourceDocumentId); notify('success', 'Testamento analizado', 'El formulario se actualizó con los datos encontrados.'); }
-    catch (error) { notify('warning', 'El archivo sigue guardado', error instanceof Error ? error.message : 'No se pudo completar el análisis.'); }
-    finally { setAnalyzing(false); setAnalysisProgress(''); }
+    try {
+      await analyzeStoredTestament(data.sourceDocumentId);
+      notify(
+        "success",
+        "Testamento analizado",
+        "El formulario se actualizó con los datos encontrados.",
+      );
+    } catch (error) {
+      notify(
+        "warning",
+        "El archivo sigue guardado",
+        error instanceof Error
+          ? error.message
+          : "No se pudo completar el análisis.",
+      );
+    } finally {
+      setAnalyzing(false);
+      setAnalysisProgress("");
+    }
   };
-  const submit = async (event: MouseEvent<HTMLButtonElement>, type: 'word' | 'pdf') => { event.preventDefault(); if (!event.currentTarget.form?.reportValidity()) return; setSaving(true); try { const snapshot = JSON.stringify(data); const record = savedDocument && snapshot === savedSnapshot ? savedDocument : await notaryDocumentsApi.createSearchOffice(data); if (record !== savedDocument) { setSavedDocument(record); setSavedSnapshot(snapshot); } const blob = await notaryDocumentsApi.download(record, type); downloadBlob(blob, `${record.folio}-${data.deceasedName.replace(/\s+/g, '-').toLowerCase()}.${type === 'word' ? 'docx' : 'pdf'}`); notify('success', `Documento guardado · ${record.folio}`, `El oficio quedó archivado y la descarga en ${type === 'word' ? 'Word' : 'PDF'} comenzó.`); } catch (error) { notify('error', 'No se pudo guardar el oficio', error instanceof Error ? error.message : 'Revisa los datos e intenta nuevamente.'); } finally { setSaving(false); } };
-  return <form className="space-y-6">
-    <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end"><div><Link to="/notaria" className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700"><ArrowLeft className="h-4 w-4"/> Volver a formatos</Link><h1 className="text-3xl font-bold tracking-tight">Búsqueda de radicación</h1><p className="mt-2 text-sm text-slate-500">Genera el oficio para solicitar información sobre disposiciones testamentarias posteriores.</p>{savedDocument ? <p className="mt-2 text-sm font-bold text-emerald-700">Guardado con folio {savedDocument.folio}</p> : null}</div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => setPreview((value) => !value)} className="inline-flex items-center gap-2 rounded-lg border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"><FileText className="h-4 w-4"/>{preview ? 'Ocultar vista previa' : 'Vista previa'}</button><button type="button" disabled={saving} onClick={(event) => void submit(event, 'pdf')} className="inline-flex items-center gap-2 rounded-lg border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"><Download className="h-4 w-4"/>{saving ? 'Guardando...' : 'Guardar y descargar PDF'}</button><button type="button" disabled={saving} onClick={(event) => void submit(event, 'word')} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"><Download className="h-4 w-4"/>{saving ? 'Guardando...' : 'Guardar y descargar Word'}</button></div></div>
-    <div className="flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0"/><p>La información permanece en este navegador. Revisa nombres, fechas y fundamento legal antes de firmar.</p></div>
-    <FormSection title="Autoridad y oficio" description="Puedes sustituir los datos para generar el mismo formato dirigido a la segunda autoridad."><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"><Input required label="Lugar de expedición" value={data.place} onChange={(e) => set('place', e.target.value)}/><Input required type="date" label="Fecha del oficio" value={data.issueDate} onChange={(e) => set('issueDate', e.target.value)}/><SelectField label="Tratamiento de la autoridad" value={data.authorityGender} onChange={(value) => set('authorityGender', value as 'M'|'F')} options={[['F','Femenino'],['M','Masculino']]}/><Input required label="Nombre de la autoridad" value={data.authorityName} onChange={(e) => set('authorityName', e.target.value.toUpperCase())}/><Input required label="Cargo" value={data.authorityTitle} onChange={(e) => set('authorityTitle', e.target.value.toUpperCase())}/><Input required label="Dependencia" value={data.authorityDepartment} onChange={(e) => set('authorityDepartment', e.target.value.toUpperCase())}/></div></FormSection>
-    <FormSection title="Radicación de la sucesión"><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Input required label="Instrumento de radicación" value={data.radicationInstrument} onChange={(e) => set('radicationInstrument', e.target.value)}/><Input required label="Volumen" value={data.radicationVolume} onChange={(e) => set('radicationVolume', e.target.value)}/><Input required type="date" label="Fecha de radicación" value={data.radicationDate} onChange={(e) => set('radicationDate', e.target.value)}/><SelectField label="Sexo de la persona fallecida" value={data.deceasedGender} onChange={(value) => set('deceasedGender', value as 'M'|'F')} options={[['M','Masculino'],['F','Femenino']]}/><Input required label="Nombre completo" containerClassName="md:col-span-2" value={data.deceasedName} onChange={(e) => set('deceasedName', e.target.value.toUpperCase())}/></div></FormSection>
-    <FormSection title="Testamento utilizado" description="Sube el testamento del expediente. La IA propondrá los datos y tú podrás cotejarlos con el original antes de generar el oficio."><div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-4"><div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]"><label className="text-sm font-bold text-blue-950">Expediente<select required value={caseId} onChange={(e) => setCaseId(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border bg-white px-3 font-normal"><option value="">Selecciona un expediente</option>{cases.map((item) => <option key={item.id} value={item.id}>{item.folio} · {item.titulo}</option>)}</select></label><label className={`flex h-11 cursor-pointer items-center justify-center gap-2 self-end rounded-xl bg-blue-600 px-5 text-sm font-bold text-white ${!caseId || analyzing ? 'pointer-events-none opacity-50' : 'hover:bg-blue-700'}`}><Upload className="h-4 w-4"/>{analyzing ? 'Analizando…' : 'Subir testamento'}<input hidden type="file" accept=".pdf,.docx,image/jpeg,image/png,image/webp" onChange={(event) => void uploadTestament(event)}/></label></div>{analysisProgress ? <p className="mt-3 flex items-center gap-2 text-sm font-medium text-blue-700"><RefreshCw className="h-4 w-4 animate-spin"/>{analysisProgress}</p> : null}{data.sourceFileName ? <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="flex items-center gap-2 text-sm font-medium text-emerald-700"><FileCheck2 className="h-4 w-4"/>{data.sourceFileName} guardado en el expediente</p><button type="button" disabled={analyzing} onClick={() => void retryTestament()} className="rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-bold text-blue-700 disabled:opacity-50">Reintentar análisis IA</button></div> : null}</div><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Input required label="Instrumento del testamento" value={data.willInstrument} onChange={(e) => set('willInstrument', e.target.value)}/><Input required label="Volumen" value={data.willVolume} onChange={(e) => set('willVolume', e.target.value)}/><Input required label="Nombre del notario" value={data.willNotaryName} onChange={(e) => set('willNotaryName', e.target.value.toUpperCase())}/><Input required label="Número de notaría" value={data.willNotaryNumber} onChange={(e) => set('willNotaryNumber', e.target.value)}/><Input required label="Lugar de otorgamiento" containerClassName="md:col-span-2" value={data.willPlace} onChange={(e) => set('willPlace', e.target.value)}/><Input required type="date" label="Fecha del testamento" value={data.willDate} onChange={(e) => set('willDate', e.target.value)}/></div></FormSection>
-    <FormSection title="Datos personales"><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Input required label="Nacionalidad" value={data.nationality} onChange={(e) => set('nationality', e.target.value.toLowerCase())}/><Input required label="Ciudad de nacimiento" value={data.birthCity} onChange={(e) => set('birthCity', e.target.value)}/><Input required label="Estado de nacimiento" value={data.birthState} onChange={(e) => set('birthState', e.target.value)}/><Input required type="date" label="Fecha de nacimiento" value={data.birthDate} onChange={(e) => set('birthDate', e.target.value)}/><Input required label="Estado civil" value={data.maritalStatus} onChange={(e) => set('maritalStatus', e.target.value.toLowerCase())}/><Input label="Ocupación" value={data.occupation} onChange={(e) => set('occupation', e.target.value)}/><Input required label="CURP" maxLength={18} value={data.curp} onChange={(e) => set('curp', e.target.value.toUpperCase())}/><Input required label="RFC" maxLength={13} value={data.rfc} onChange={(e) => set('rfc', e.target.value.toUpperCase())}/><Input required label="Folio INE" value={data.ineFolio} onChange={(e) => set('ineFolio', e.target.value.toUpperCase())}/></div></FormSection>
-    <FormSection title="Domicilio"><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Input required label="Calle" value={data.street} onChange={(e) => set('street', e.target.value)}/><Input required label="Número exterior" value={data.exteriorNumber} onChange={(e) => set('exteriorNumber', e.target.value)}/><Input label="Número interior" value={data.interiorNumber} onChange={(e) => set('interiorNumber', e.target.value)}/><Input label="Colonia o fraccionamiento" value={data.neighborhood} onChange={(e) => set('neighborhood', e.target.value)}/><Input label="Código postal" maxLength={5} value={data.postalCode} onChange={(e) => set('postalCode', e.target.value.replace(/\D/g,''))}/><Input required label="Ciudad" value={data.city} onChange={(e) => set('city', e.target.value)}/><Input required label="Estado" value={data.state} onChange={(e) => set('state', e.target.value)}/></div></FormSection>
-    <FormSection title="Padres"><div className="grid gap-4 md:grid-cols-2"><ParentField label="Nombre del padre" name={data.fatherName} deceased={data.fatherDeceased} onName={(value) => set('fatherName', value)} onStatus={(value) => set('fatherDeceased', value)}/><ParentField label="Nombre de la madre" name={data.motherName} deceased={data.motherDeceased} onName={(value) => set('motherName', value)} onStatus={(value) => set('motherDeceased', value)}/></div></FormSection>
-    <FormSection title="Fundamento y firma"><div className="grid gap-4 md:grid-cols-2"><Input required label="Fundamento legal" containerClassName="md:col-span-2" value={data.legalBasis} onChange={(e) => set('legalBasis', e.target.value)}/><Input required label="Nombre del firmante" value={data.signerName} onChange={(e) => set('signerName', e.target.value.toUpperCase())}/><Input required label="Cargo del firmante" value={data.signerTitle} onChange={(e) => set('signerTitle', e.target.value.toUpperCase())}/></div></FormSection>
-    {preview ? <section className="rounded-2xl border bg-white p-6 shadow-sm"><h2 className="text-lg font-bold">Vista previa del texto</h2><p className="mt-4 whitespace-pre-wrap text-justify font-serif leading-8 text-slate-700">{buildNotarySearchOfficeText(data)}</p></section> : null}
-  </form>;
+
+  const applyEvidenceData = (
+    section: "radication" | "personal" | "address" | "parents",
+    found: Record<string, unknown>,
+  ) => {
+    const text = (key: string) =>
+      typeof found[key] === "string" ? String(found[key]).trim() : "";
+    const completeName =
+      text("nombre") ||
+      [text("nombres"), text("apellidoPaterno"), text("apellidoMaterno")]
+        .filter(Boolean)
+        .join(" ");
+    const birthPlace = text("lugarNacimiento")
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    setData((current) =>
+      section === "radication"
+        ? {
+            ...current,
+            radicationInstrument:
+              text("numeroInstrumento") || current.radicationInstrument,
+            radicationVolume: text("volumen") || current.radicationVolume,
+            radicationDate: text("fechaInstrumento") || current.radicationDate,
+            deceasedName: completeName.toUpperCase() || current.deceasedName,
+          }
+        : section === "personal"
+          ? {
+              ...current,
+              deceasedName: completeName.toUpperCase() || current.deceasedName,
+              deceasedGender:
+                text("sexo") === "H"
+                  ? "M"
+                  : text("sexo") === "M"
+                    ? "F"
+                    : current.deceasedGender,
+              nationality:
+                text("nacionalidad").toLowerCase() || current.nationality,
+              birthCity:
+                text("ciudadNacimiento") || birthPlace[0] || current.birthCity,
+              birthState:
+                text("estadoNacimiento") ||
+                birthPlace.at(-1) ||
+                current.birthState,
+              birthDate: text("fechaNacimiento") || current.birthDate,
+              maritalStatus:
+                text("estadoCivil").toLowerCase() || current.maritalStatus,
+              occupation: text("ocupacion") || current.occupation,
+              curp: text("curp").toUpperCase() || current.curp,
+              rfc: text("rfc").toUpperCase() || current.rfc,
+              ineFolio:
+                text("idmex").toUpperCase() ||
+                text("numeroDocumento").toUpperCase() ||
+                text("claveElector").toUpperCase() ||
+                current.ineFolio,
+            }
+          : section === "address"
+            ? {
+                ...current,
+                street: text("calle") || text("domicilio") || current.street,
+                exteriorNumber:
+                  text("numeroExterior") || current.exteriorNumber,
+                interiorNumber:
+                  text("numeroInterior") || current.interiorNumber,
+                neighborhood: text("colonia") || current.neighborhood,
+                postalCode: text("codigoPostal") || current.postalCode,
+                city: text("ciudad") || current.city,
+                state: text("estado") || current.state,
+              }
+            : {
+                ...current,
+                fatherName:
+                  text("nombrePadre").toUpperCase() || current.fatherName,
+                motherName:
+                  text("nombreMadre").toUpperCase() || current.motherName,
+              },
+    );
+  };
+
+  const uploadEvidence = async (
+    event: ChangeEvent<HTMLInputElement>,
+    section: "radication" | "personal" | "address" | "parents",
+    expectedType: string,
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    const selectedCase = cases.find((item) => item.id === caseId);
+    if (!file || !selectedCase) return;
+    setAnalyzing(true);
+    try {
+      const document = await notaryInboxApi.upload(
+        { id: selectedCase.id, clientId: selectedCase.cliente_id },
+        file,
+        expectedType,
+        setAnalysisProgress,
+      );
+      setSectionSources((current) => ({
+        ...current,
+        [section]: document.fileName,
+      }));
+      applyEvidenceData(section, document.extractedData);
+      setAnalysisProgress(
+        `Analizando ${expectedType.toLowerCase()} con IA empresarial…`,
+      );
+      const result = await notaryInboxApi.analyzeWithAi(document.id);
+      applyEvidenceData(section, result.extractedData || {});
+      notify(
+        "success",
+        "Documento analizado",
+        "Los datos encontrados se colocaron como propuesta para cotejo humano.",
+      );
+    } catch (error) {
+      notify(
+        "error",
+        "No se pudo procesar el documento",
+        error instanceof Error ? error.message : "Intenta nuevamente.",
+      );
+    } finally {
+      setAnalyzing(false);
+      setAnalysisProgress("");
+    }
+  };
+  const submit = async (
+    event: MouseEvent<HTMLButtonElement>,
+    type: "word" | "pdf",
+  ) => {
+    event.preventDefault();
+    if (!event.currentTarget.form?.reportValidity()) return;
+    setSaving(true);
+    try {
+      const snapshot = JSON.stringify(data);
+      const record =
+        savedDocument && snapshot === savedSnapshot
+          ? savedDocument
+          : await notaryDocumentsApi.createSearchOffice(data);
+      if (record !== savedDocument) {
+        setSavedDocument(record);
+        setSavedSnapshot(snapshot);
+      }
+      const blob = await notaryDocumentsApi.download(record, type);
+      downloadBlob(
+        blob,
+        `${record.folio}-${data.deceasedName.replace(/\s+/g, "-").toLowerCase()}.${type === "word" ? "docx" : "pdf"}`,
+      );
+      notify(
+        "success",
+        `Documento guardado · ${record.folio}`,
+        `El oficio quedó archivado y la descarga en ${type === "word" ? "Word" : "PDF"} comenzó.`,
+      );
+    } catch (error) {
+      notify(
+        "error",
+        "No se pudo guardar el oficio",
+        error instanceof Error
+          ? error.message
+          : "Revisa los datos e intenta nuevamente.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <form className="space-y-6">
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+        <div>
+          <Link
+            to="/notaria"
+            className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700"
+          >
+            <ArrowLeft className="h-4 w-4" /> Volver a formatos
+          </Link>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Búsqueda de radicación
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Genera el oficio para solicitar información sobre disposiciones
+            testamentarias posteriores.
+          </p>
+          {savedDocument ? (
+            <p className="mt-2 text-sm font-bold text-emerald-700">
+              Guardado con folio {savedDocument.folio}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setPreview((value) => !value)}
+            className="inline-flex items-center gap-2 rounded-lg border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+          >
+            <FileText className="h-4 w-4" />
+            {preview ? "Ocultar vista previa" : "Vista previa"}
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={(event) => void submit(event, "pdf")}
+            className="inline-flex items-center gap-2 rounded-lg border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          >
+            <Download className="h-4 w-4" />
+            {saving ? "Guardando..." : "Guardar y descargar PDF"}
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={(event) => void submit(event, "word")}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+          >
+            <Download className="h-4 w-4" />
+            {saving ? "Guardando..." : "Guardar y descargar Word"}
+          </button>
+        </div>
+      </div>
+      <div className="flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+        <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
+        <p>
+          La información permanece en este navegador. Revisa nombres, fechas y
+          fundamento legal antes de firmar.
+        </p>
+      </div>
+      <FormSection
+        title="Autoridad y oficio"
+        description="Puedes sustituir los datos para generar el mismo formato dirigido a la segunda autoridad."
+      >
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <Input
+            required
+            label="Lugar de expedición"
+            value={data.place}
+            onChange={(e) => set("place", e.target.value)}
+          />
+          <Input
+            required
+            type="date"
+            label="Fecha del oficio"
+            value={data.issueDate}
+            onChange={(e) => set("issueDate", e.target.value)}
+          />
+          <SelectField
+            label="Tratamiento de la autoridad"
+            value={data.authorityGender}
+            onChange={(value) => set("authorityGender", value as "M" | "F")}
+            options={[
+              ["F", "Femenino"],
+              ["M", "Masculino"],
+            ]}
+          />
+          <Input
+            required
+            label="Nombre de la autoridad"
+            value={data.authorityName}
+            onChange={(e) => set("authorityName", e.target.value.toUpperCase())}
+          />
+          <Input
+            required
+            label="Cargo"
+            value={data.authorityTitle}
+            onChange={(e) =>
+              set("authorityTitle", e.target.value.toUpperCase())
+            }
+          />
+          <Input
+            required
+            label="Dependencia"
+            value={data.authorityDepartment}
+            onChange={(e) =>
+              set("authorityDepartment", e.target.value.toUpperCase())
+            }
+          />
+        </div>
+      </FormSection>
+      <FormSection title="Radicación de la sucesión">
+        <EvidenceSource
+          disabled={!caseId || analyzing}
+          loading={analyzing}
+          progress={analysisProgress}
+          fileName={sectionSources.radication}
+          description="Fuente: escritura o instrumento de radicación."
+          options={["Escritura"]}
+          onUpload={(event, type) =>
+            void uploadEvidence(event, "radication", type)
+          }
+        />
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Input
+            required
+            label="Instrumento de radicación"
+            value={data.radicationInstrument}
+            onChange={(e) => set("radicationInstrument", e.target.value)}
+          />
+          <Input
+            required
+            label="Volumen"
+            value={data.radicationVolume}
+            onChange={(e) => set("radicationVolume", e.target.value)}
+          />
+          <Input
+            required
+            type="date"
+            label="Fecha de radicación"
+            value={data.radicationDate}
+            onChange={(e) => set("radicationDate", e.target.value)}
+          />
+          <SelectField
+            label="Sexo de la persona fallecida"
+            value={data.deceasedGender}
+            onChange={(value) => set("deceasedGender", value as "M" | "F")}
+            options={[
+              ["M", "Masculino"],
+              ["F", "Femenino"],
+            ]}
+          />
+          <Input
+            required
+            label="Nombre completo"
+            containerClassName="md:col-span-2"
+            value={data.deceasedName}
+            onChange={(e) => set("deceasedName", e.target.value.toUpperCase())}
+          />
+        </div>
+      </FormSection>
+      <FormSection
+        title="Testamento utilizado"
+        description="Sube el testamento del expediente. La IA propondrá los datos y tú podrás cotejarlos con el original antes de generar el oficio."
+      >
+        <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-4">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+            <label className="text-sm font-bold text-blue-950">
+              Expediente
+              <select
+                required
+                value={caseId}
+                onChange={(e) => setCaseId(e.target.value)}
+                className="mt-1.5 h-11 w-full rounded-xl border bg-white px-3 font-normal"
+              >
+                <option value="">Selecciona un expediente</option>
+                {cases.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.folio} · {item.titulo}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label
+              className={`flex h-11 cursor-pointer items-center justify-center gap-2 self-end rounded-xl bg-blue-600 px-5 text-sm font-bold text-white ${!caseId || analyzing ? "pointer-events-none opacity-50" : "hover:bg-blue-700"}`}
+            >
+              <Upload className="h-4 w-4" />
+              {analyzing ? "Analizando…" : "Subir testamento"}
+              <input
+                hidden
+                type="file"
+                accept=".pdf,.docx,image/jpeg,image/png,image/webp"
+                onChange={(event) => void uploadTestament(event)}
+              />
+            </label>
+          </div>
+          {analysisProgress ? (
+            <p className="mt-3 flex items-center gap-2 text-sm font-medium text-blue-700">
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              {analysisProgress}
+            </p>
+          ) : null}
+          {data.sourceFileName ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="flex items-center gap-2 text-sm font-medium text-emerald-700">
+                <FileCheck2 className="h-4 w-4" />
+                {data.sourceFileName} guardado en el expediente
+              </p>
+              <button
+                type="button"
+                disabled={analyzing}
+                onClick={() => void retryTestament()}
+                className="rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-bold text-blue-700 disabled:opacity-50"
+              >
+                Reintentar análisis IA
+              </button>
+            </div>
+          ) : null}
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Input
+            required
+            label="Instrumento del testamento"
+            value={data.willInstrument}
+            onChange={(e) => set("willInstrument", e.target.value)}
+          />
+          <Input
+            required
+            label="Volumen"
+            value={data.willVolume}
+            onChange={(e) => set("willVolume", e.target.value)}
+          />
+          <Input
+            required
+            label="Nombre del notario"
+            value={data.willNotaryName}
+            onChange={(e) =>
+              set("willNotaryName", e.target.value.toUpperCase())
+            }
+          />
+          <Input
+            required
+            label="Número de notaría"
+            value={data.willNotaryNumber}
+            onChange={(e) => set("willNotaryNumber", e.target.value)}
+          />
+          <Input
+            required
+            label="Lugar de otorgamiento"
+            containerClassName="md:col-span-2"
+            value={data.willPlace}
+            onChange={(e) => set("willPlace", e.target.value)}
+          />
+          <Input
+            required
+            type="date"
+            label="Fecha del testamento"
+            value={data.willDate}
+            onChange={(e) => set("willDate", e.target.value)}
+          />
+        </div>
+      </FormSection>
+      <FormSection title="Datos personales">
+        <EvidenceSource
+          disabled={!caseId || analyzing}
+          loading={analyzing}
+          progress={analysisProgress}
+          fileName={sectionSources.personal}
+          description="Fuentes recomendadas: INE, CSF, CURP o acta de nacimiento."
+          options={["INE", "CSF", "CURP", "Acta de nacimiento"]}
+          onUpload={(event, type) =>
+            void uploadEvidence(event, "personal", type)
+          }
+        />
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Input
+            required
+            label="Nacionalidad"
+            value={data.nationality}
+            onChange={(e) => set("nationality", e.target.value.toLowerCase())}
+          />
+          <Input
+            required
+            label="Ciudad de nacimiento"
+            value={data.birthCity}
+            onChange={(e) => set("birthCity", e.target.value)}
+          />
+          <Input
+            required
+            label="Estado de nacimiento"
+            value={data.birthState}
+            onChange={(e) => set("birthState", e.target.value)}
+          />
+          <Input
+            required
+            type="date"
+            label="Fecha de nacimiento"
+            value={data.birthDate}
+            onChange={(e) => set("birthDate", e.target.value)}
+          />
+          <Input
+            required
+            label="Estado civil"
+            value={data.maritalStatus}
+            onChange={(e) => set("maritalStatus", e.target.value.toLowerCase())}
+          />
+          <Input
+            label="Ocupación"
+            value={data.occupation}
+            onChange={(e) => set("occupation", e.target.value)}
+          />
+          <Input
+            required
+            label="CURP"
+            maxLength={18}
+            value={data.curp}
+            onChange={(e) => set("curp", e.target.value.toUpperCase())}
+          />
+          <Input
+            required
+            label="RFC"
+            maxLength={13}
+            value={data.rfc}
+            onChange={(e) => set("rfc", e.target.value.toUpperCase())}
+          />
+          <Input
+            required
+            label="Folio INE"
+            value={data.ineFolio}
+            onChange={(e) => set("ineFolio", e.target.value.toUpperCase())}
+          />
+        </div>
+      </FormSection>
+      <FormSection title="Domicilio">
+        <EvidenceSource
+          disabled={!caseId || analyzing}
+          loading={analyzing}
+          progress={analysisProgress}
+          fileName={sectionSources.address}
+          description="Fuente recomendada: CSF; también puede usarse INE o comprobante de domicilio."
+          options={["CSF", "INE", "Comprobante de domicilio"]}
+          onUpload={(event, type) =>
+            void uploadEvidence(event, "address", type)
+          }
+        />
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Input
+            required
+            label="Calle"
+            value={data.street}
+            onChange={(e) => set("street", e.target.value)}
+          />
+          <Input
+            required
+            label="Número exterior"
+            value={data.exteriorNumber}
+            onChange={(e) => set("exteriorNumber", e.target.value)}
+          />
+          <Input
+            label="Número interior"
+            value={data.interiorNumber}
+            onChange={(e) => set("interiorNumber", e.target.value)}
+          />
+          <Input
+            label="Colonia o fraccionamiento"
+            value={data.neighborhood}
+            onChange={(e) => set("neighborhood", e.target.value)}
+          />
+          <Input
+            label="Código postal"
+            maxLength={5}
+            value={data.postalCode}
+            onChange={(e) =>
+              set("postalCode", e.target.value.replace(/\D/g, ""))
+            }
+          />
+          <Input
+            required
+            label="Ciudad"
+            value={data.city}
+            onChange={(e) => set("city", e.target.value)}
+          />
+          <Input
+            required
+            label="Estado"
+            value={data.state}
+            onChange={(e) => set("state", e.target.value)}
+          />
+        </div>
+      </FormSection>
+      <FormSection title="Padres">
+        <EvidenceSource
+          disabled={!caseId || analyzing}
+          loading={analyzing}
+          progress={analysisProgress}
+          fileName={sectionSources.parents}
+          description="Fuente: acta de nacimiento de la persona fallecida."
+          options={["Acta de nacimiento"]}
+          onUpload={(event, type) =>
+            void uploadEvidence(event, "parents", type)
+          }
+        />
+        <div className="grid gap-4 md:grid-cols-2">
+          <ParentField
+            label="Nombre del padre"
+            name={data.fatherName}
+            deceased={data.fatherDeceased}
+            onName={(value) => set("fatherName", value)}
+            onStatus={(value) => set("fatherDeceased", value)}
+          />
+          <ParentField
+            label="Nombre de la madre"
+            name={data.motherName}
+            deceased={data.motherDeceased}
+            onName={(value) => set("motherName", value)}
+            onStatus={(value) => set("motherDeceased", value)}
+          />
+        </div>
+      </FormSection>
+      <FormSection title="Fundamento y firma">
+        <div className="grid gap-4 md:grid-cols-2">
+          <Input
+            required
+            label="Fundamento legal"
+            containerClassName="md:col-span-2"
+            value={data.legalBasis}
+            onChange={(e) => set("legalBasis", e.target.value)}
+          />
+          <Input
+            required
+            label="Nombre del firmante"
+            value={data.signerName}
+            onChange={(e) => set("signerName", e.target.value.toUpperCase())}
+          />
+          <Input
+            required
+            label="Cargo del firmante"
+            value={data.signerTitle}
+            onChange={(e) => set("signerTitle", e.target.value.toUpperCase())}
+          />
+        </div>
+      </FormSection>
+      {preview ? (
+        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-bold">Vista previa del texto</h2>
+          <p className="mt-4 whitespace-pre-wrap text-justify font-serif leading-8 text-slate-700">
+            {buildNotarySearchOfficeText(data)}
+          </p>
+        </section>
+      ) : null}
+    </form>
+  );
 }
 
-function FormSection({ title, description, children }: { title: string; description?: string; children: ReactNode }) { return <section className="rounded-2xl border bg-white p-6 shadow-sm"><div className="mb-5"><h2 className="text-lg font-bold">{title}</h2>{description ? <p className="mt-1 text-sm text-slate-500">{description}</p> : null}</div>{children}</section>; }
-function SelectField({ label, value, options, onChange }: { label: string; value: string; options: [string,string][]; onChange: (value: string) => void }) { return <label className="flex w-full flex-col gap-1.5 text-sm font-medium text-slate-700">{label}<select value={value} onChange={(e) => onChange(e.target.value)} className="h-10 rounded-md border bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500">{options.map(([key,text]) => <option key={key} value={key}>{text}</option>)}</select></label>; }
-function ParentField({ label, name, deceased, onName, onStatus }: { label: string; name: string; deceased: boolean; onName: (value: string) => void; onStatus: (value: boolean) => void }) { return <div className="space-y-3 rounded-xl border bg-slate-50 p-4"><Input required label={label} value={name} onChange={(e) => onName(e.target.value.toUpperCase())}/><label className="flex items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" checked={deceased} onChange={(e) => onStatus(e.target.checked)} className="h-4 w-4 rounded accent-blue-600"/> Persona fallecida</label></div>; }
+function FormSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border bg-white p-6 shadow-sm">
+      <div className="mb-5">
+        <h2 className="text-lg font-bold">{title}</h2>
+        {description ? (
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        ) : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: [string, string][];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex w-full flex-col gap-1.5 text-sm font-medium text-slate-700">
+      {label}
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-10 rounded-md border bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+      >
+        {options.map(([key, text]) => (
+          <option key={key} value={key}>
+            {text}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+function ParentField({
+  label,
+  name,
+  deceased,
+  onName,
+  onStatus,
+}: {
+  label: string;
+  name: string;
+  deceased: boolean;
+  onName: (value: string) => void;
+  onStatus: (value: boolean) => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-xl border bg-slate-50 p-4">
+      <Input
+        required
+        label={label}
+        value={name}
+        onChange={(e) => onName(e.target.value.toUpperCase())}
+      />
+      <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+        <input
+          type="checkbox"
+          checked={deceased}
+          onChange={(e) => onStatus(e.target.checked)}
+          className="h-4 w-4 rounded accent-blue-600"
+        />{" "}
+        Persona fallecida
+      </label>
+    </div>
+  );
+}
+
+function EvidenceSource({
+  description,
+  options,
+  disabled,
+  loading,
+  progress,
+  fileName,
+  onUpload,
+}: {
+  description: string;
+  options: string[];
+  disabled: boolean;
+  loading: boolean;
+  progress: string;
+  fileName?: string;
+  onUpload: (event: ChangeEvent<HTMLInputElement>, type: string) => void;
+}) {
+  const [type, setType] = useState(options[0]);
+  return (
+    <div className="mb-5 rounded-xl border border-dashed border-blue-300 bg-blue-50/70 p-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-blue-950">
+            Documento fuente para cotejo
+          </p>
+          <p className="mt-1 text-xs text-blue-700">{description}</p>
+        </div>
+        <label className="text-xs font-bold text-blue-900">
+          Tipo de documento
+          <select
+            value={type}
+            onChange={(event) => setType(event.target.value)}
+            className="mt-1 block h-10 min-w-52 rounded-lg border bg-white px-3 text-sm font-normal"
+          >
+            {options.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </select>
+        </label>
+        <label
+          className={`flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white ${disabled ? "pointer-events-none opacity-50" : "hover:bg-blue-700"}`}
+        >
+          <Upload className="h-4 w-4" />
+          {loading ? "Analizando…" : "Subir y obtener datos"}
+          <input
+            hidden
+            type="file"
+            accept=".pdf,.docx,image/jpeg,image/png,image/webp"
+            onChange={(event) => onUpload(event, type)}
+          />
+        </label>
+      </div>
+      {loading && progress ? (
+        <p className="mt-3 flex items-center gap-2 text-xs font-bold text-blue-700">
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          {progress}
+        </p>
+      ) : null}
+      {fileName ? (
+        <p className="mt-3 flex items-center gap-2 text-xs font-bold text-emerald-700">
+          <FileCheck2 className="h-4 w-4" />
+          {fileName} · datos propuestos; revisa los campos contra el original
+        </p>
+      ) : null}
+    </div>
+  );
+}
