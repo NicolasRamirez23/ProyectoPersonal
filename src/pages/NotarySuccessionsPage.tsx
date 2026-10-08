@@ -1,10 +1,19 @@
 import { FormEvent, ReactNode, useEffect, useState } from "react";
-import { FilePlus2, Search, Trash2, UsersRound } from "lucide-react";
+import {
+  FileCheck2,
+  FilePlus2,
+  Search,
+  Trash2,
+  Upload,
+  UsersRound,
+} from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Input } from "../components/Input";
 import { useAlerts } from "../components/AlertProvider";
 import { notaryProcessesApi } from "../services/notaryProcesses";
+import { notaryInboxApi } from "../services/notaryInbox";
 import { notarySuccessionsApi } from "../services/notarySuccessions";
+import { analyzeNotaryDocument } from "../lib/notaryLocalExtraction";
 import type {
   NotarySuccession,
   SuccessionPerson,
@@ -75,6 +84,12 @@ const routeRequirements = {
     "Dos testigos",
   ],
 };
+type ActorDocumentDraft = {
+  file: File;
+  type: string;
+  roleProposal: string;
+  confirmed: boolean;
+};
 
 export function NotarySuccessionsPage() {
   const [searchParams] = useSearchParams();
@@ -88,6 +103,15 @@ export function NotarySuccessionsPage() {
   const [deceased, setDeceased] = useState(emptyDeceased);
   const [will, setWill] = useState(emptyWill);
   const [people, setPeople] = useState<SuccessionPerson[]>([emptyPerson(true)]);
+  const [actorDocuments, setActorDocuments] = useState<
+    Record<number, ActorDocumentDraft>
+  >({});
+  const [actorDocumentTypes, setActorDocumentTypes] = useState<
+    Record<number, string>
+  >({});
+  const [actorProgress, setActorProgress] = useState<Record<number, string>>(
+    {},
+  );
   const [saving, setSaving] = useState(false);
   const { notify } = useAlerts();
   const navigate = useNavigate();
@@ -137,8 +161,92 @@ export function NotarySuccessionsPage() {
       );
     }
   };
+  const uploadActorDocument = async (index: number, file: File) => {
+    const expectedType = actorDocumentTypes[index] || "INE";
+    setActorProgress((current) => ({
+      ...current,
+      [index]: "Leyendo documento…",
+    }));
+    try {
+      const analysis = await analyzeNotaryDocument(
+        file,
+        (message) =>
+          setActorProgress((current) => ({ ...current, [index]: message })),
+        expectedType,
+      );
+      const found = analysis.data;
+      setPeople((current) =>
+        current.map((person, position) => {
+          if (position !== index) return person;
+          const detectedRole = analysis.role.toLowerCase();
+          const proposedRole: SuccessionPerson["role"] | undefined =
+            detectedRole.includes("albacea")
+              ? "albacea"
+              : detectedRole.includes("heredero")
+                ? "heredero"
+                : undefined;
+          return {
+            ...person,
+            role: proposedRole || person.role,
+            client: {
+              ...person.client,
+              nombres: found.nombres || found.nombre || person.client.nombres,
+              apellidoPaterno:
+                found.apellidoPaterno || person.client.apellidoPaterno,
+              apellidoMaterno:
+                found.apellidoMaterno || person.client.apellidoMaterno,
+              curp: found.curp || person.client.curp,
+              rfc: found.rfc || person.client.rfc,
+              domicilio: found.domicilio || person.client.domicilio,
+              birthDate: found.fechaNacimiento || person.client.birthDate,
+              birthPlace: found.lugarNacimiento || person.client.birthPlace,
+              nationality: found.nacionalidad || person.client.nationality,
+              maritalStatus: found.estadoCivil || person.client.maritalStatus,
+              occupation: found.ocupacion || person.client.occupation,
+            },
+          };
+        }),
+      );
+      setActorDocuments((current) => ({
+        ...current,
+        [index]: {
+          file,
+          type: expectedType,
+          roleProposal: analysis.role || "Rol no indicado en este documento",
+          confirmed: false,
+        },
+      }));
+      notify(
+        "success",
+        "Datos propuestos",
+        analysis.role
+          ? `El documento sugiere el rol: ${analysis.role}. Confírmalo antes de crear el expediente.`
+          : "Se llenaron los datos identificados. El rol debe confirmarse manualmente porque el documento no lo declara.",
+      );
+    } catch (error) {
+      notify(
+        "error",
+        "No se pudo leer el documento",
+        error instanceof Error
+          ? error.message
+          : "Intenta con una imagen más clara.",
+      );
+    } finally {
+      setActorProgress((current) => ({ ...current, [index]: "" }));
+    }
+  };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (
+      (Object.values(actorDocuments) as ActorDocumentDraft[]).some(
+        (document) => !document.confirmed,
+      )
+    )
+      return notify(
+        "warning",
+        "Falta cotejar actores",
+        "Revisa los datos y confirma el rol propuesto de cada documento cargado.",
+      );
     if (
       !people.length ||
       people.some((person) => !person.client.curp || !person.client.nombres)
@@ -169,10 +277,36 @@ export function NotarySuccessionsPage() {
         will,
         people,
       });
+      let pendingActorDocuments = 0;
+      for (const [position, source] of Object.entries(actorDocuments) as [
+        string,
+        ActorDocumentDraft,
+      ][]) {
+        const participant = result.participants[Number(position)];
+        if (!participant) continue;
+        try {
+          const document = await notaryInboxApi.upload(
+            { id: result.caseId, clientId: participant.clientId },
+            source.file,
+            source.type,
+          );
+          try {
+            await notaryInboxApi.analyzeWithAi(document.id);
+          } catch {
+            // El original queda guardado y podrá reanalizarse desde la bandeja.
+          }
+        } catch {
+          pendingActorDocuments += 1;
+        }
+      }
       notify(
-        "success",
-        "Sucesión creada",
-        "Se generó el expediente y su ruta de trabajo.",
+        pendingActorDocuments ? "warning" : "success",
+        pendingActorDocuments
+          ? "Sucesión creada · carga pendiente"
+          : "Sucesión creada",
+        pendingActorDocuments
+          ? `El expediente quedó listo. ${pendingActorDocuments} documento(s) deberán volver a cargarse desde su expediente.`
+          : "Se generó el expediente, se guardaron los originales y quedó lista su ruta de trabajo.",
       );
       navigate(`/notaria/sucesiones/${result.id}`);
     } catch (error) {
@@ -537,15 +671,101 @@ export function NotarySuccessionsPage() {
                 <button
                   type="button"
                   disabled={people.length === 1}
-                  onClick={() =>
+                  onClick={() => (
                     setPeople((current) =>
                       current.filter((_, position) => position !== index),
-                    )
-                  }
+                    ),
+                    setActorDocuments({}),
+                    setActorDocumentTypes({}),
+                    setActorProgress({})
+                  )}
                   className="text-red-600 disabled:opacity-30"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
+              </div>
+              <div className="mt-4 rounded-xl border border-dashed border-blue-300 bg-blue-50 p-4">
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end">
+                  <div>
+                    <p className="text-sm font-bold text-blue-950">
+                      Documento de la persona
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-blue-700">
+                      La lectura llena sus generales y propone el rol sólo si el
+                      documento lo declara expresamente.
+                    </p>
+                  </div>
+                  <label className="text-xs font-bold text-blue-900">
+                    Tipo documental
+                    <select
+                      value={actorDocumentTypes[index] || "INE"}
+                      onChange={(event) =>
+                        setActorDocumentTypes((current) => ({
+                          ...current,
+                          [index]: event.target.value,
+                        }))
+                      }
+                      className={`${field} mt-1 bg-white font-normal`}
+                    >
+                      <option>INE</option>
+                      <option>CSF</option>
+                      <option>CURP</option>
+                      <option>Acta de nacimiento</option>
+                      <option>Testamento</option>
+                      <option>Poder</option>
+                    </select>
+                  </label>
+                  <label className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white">
+                    <Upload className="h-4 w-4" />
+                    {actorProgress[index]
+                      ? "Leyendo…"
+                      : "Subir y obtener datos"}
+                    <input
+                      hidden
+                      type="file"
+                      accept=".pdf,.docx,image/png,image/jpeg,image/webp"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        event.target.value = "";
+                        if (file) void uploadActorDocument(index, file);
+                      }}
+                    />
+                  </label>
+                </div>
+                {actorProgress[index] ? (
+                  <p className="mt-3 text-xs font-medium text-blue-700">
+                    {actorProgress[index]}
+                  </p>
+                ) : null}
+                {actorDocuments[index] ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+                    <span className="inline-flex items-center gap-1 font-bold text-emerald-700">
+                      <FileCheck2 className="h-4 w-4" />
+                      {actorDocuments[index].file.name}
+                    </span>
+                    <span className="rounded-full bg-white px-2.5 py-1 font-bold text-slate-600">
+                      Propuesta: {actorDocuments[index].roleProposal}
+                    </span>
+                    <span className="text-slate-500">
+                      Revisa los campos y confirma el rol en el selector
+                      inferior.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setActorDocuments((current) => ({
+                          ...current,
+                          [index]: { ...current[index], confirmed: true },
+                        }))
+                      }
+                      className={`ml-auto rounded-lg px-3 py-2 font-bold ${actorDocuments[index].confirmed ? "bg-emerald-600 text-white" : "bg-slate-900 text-white"}`}
+                    >
+                      {actorDocuments[index].confirmed
+                        ? "✓ Rol y datos cotejados"
+                        : "Confirmar datos y rol"}
+                    </button>
+                  </div>
+                ) : null}
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-3">
                 <div className="flex items-end gap-2 md:col-span-2">
