@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient';
 import { notaryProcessesApi } from './notaryProcesses';
-import type { NotarySuccession, SuccessionPerson, SuccessionRoute } from '../types/notaryProcess';
+import type { NotaryExtractedData, NotarySuccession, SuccessionPerson, SuccessionRoute } from '../types/notaryProcess';
 
 const requirementsByRoute = {
   intestamentaria: [
@@ -59,6 +59,21 @@ export const notarySuccessionsApi = {
   async updateRequirement(id: string, status: string, file?: File, expiresAt?: string) {
     let patch: any = { estatus: status, vence_el: expiresAt || null }; if (file) { const path = `sucesiones/${id}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]+/g, '-')}`; const upload = await supabase.storage.from('expedientes-notaria').upload(path, file, { contentType: file.type }); if (upload.error) throw new Error(upload.error.message); patch = { ...patch, ruta: path, nombre_archivo: file.name, estatus: 'recibido' }; }
     const { error } = await supabase.from('notaria_sucesion_requisitos').update(patch).eq('id', id); if (error) throw new Error(error.message);
+  },
+  async applyRequirementEvidence(successionId: string, principalClientId: string, code: string, data: NotaryExtractedData) {
+    const clean = (value: unknown) => typeof value === 'string' && value.trim() ? value.trim() : undefined;
+    if (code === 'TESTAMENTO') {
+      const patch = { testamento_instrumento: clean(data.numeroInstrumento), testamento_volumen: clean(data.volumen), testamento_fecha: clean(data.fechaInstrumento), testamento_notario: clean(data.notario), testamento_notaria: clean(data.numeroNotaria), testamento_lugar: clean(data.lugarOtorgamiento) };
+      const { error } = await supabase.from('notaria_sucesiones').update(Object.fromEntries(Object.entries(patch).filter(([, value]) => value))).eq('id', successionId); if (error) throw new Error(error.message); return;
+    }
+    if (code === 'ACTA_DEFUNCION') {
+      const patch = { autor_nombre: clean(data.nombre), autor_fecha_nacimiento: clean(data.fechaNacimiento), autor_nacionalidad: clean(data.nacionalidad), autor_estado_civil: clean(data.estadoCivil), autor_curp: clean(data.curp), fecha_defuncion: clean(data.fechaDefuncion), lugar_defuncion: clean(data.lugarDefuncion), acta_defuncion: [clean(data.numeroActa) && `Acta ${data.numeroActa}`, clean(data.libro) && `Libro ${data.libro}`, clean(data.oficialia) && `Oficialía ${data.oficialia}`].filter(Boolean).join(', ') || undefined };
+      const { error } = await supabase.from('notaria_sucesiones').update(Object.fromEntries(Object.entries(patch).filter(([, value]) => value))).eq('id', successionId); if (error) throw new Error(error.message); return;
+    }
+    if (['IDENTIFICACION','CSF'].includes(code) && principalClientId) {
+      const patch = { nombres: clean(data.nombres), apellido_paterno: clean(data.apellidoPaterno), apellido_materno: clean(data.apellidoMaterno), curp: clean(data.curp), rfc: clean(data.rfc), domicilio: clean(data.domicilio), fecha_nacimiento: clean(data.fechaNacimiento), nacionalidad: clean(data.nacionalidad) };
+      const { error } = await supabase.from('notaria_clientes').update(Object.fromEntries(Object.entries(patch).filter(([, value]) => value))).eq('id', principalClientId); if (error) throw new Error(error.message);
+    }
   },
   async updateSearch(id: string, input: { status: string; requestDate: string; requestFolio: string; responseDate: string; responseFolio: string; result: string }) {
     const { error } = await supabase.from('notaria_sucesion_busquedas').update({ estatus: input.status, fecha_solicitud: input.requestDate || null, folio_solicitud: input.requestFolio, fecha_respuesta: input.responseDate || null, folio_respuesta: input.responseFolio, resultado: input.result }).eq('id', id); if (error) throw new Error(error.message);

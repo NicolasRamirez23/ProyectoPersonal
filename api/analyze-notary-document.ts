@@ -10,14 +10,14 @@ const header = (request: ApiRequest, name: string) => { const value = request.he
 const responseSchema = {
   type: 'OBJECT',
   properties: {
-    tipoDocumento: { type: 'STRING', enum: ['INE','CURP','CSF','Acta de nacimiento','Acta de matrimonio','Acta de defunción','Comprobante de domicilio','Testamento','Poder','Escritura','Otro'] },
+    tipoDocumento: { type: 'STRING', enum: ['INE','CURP','CSF','Acta de nacimiento','Acta de matrimonio','Acta de defunción','Comprobante de domicilio','Testamento','Poder','Escritura','Oficio de búsqueda registral','Oficio de búsqueda notarial','Otro'] },
     rolPersona: { type: 'STRING' }, confianza: { type: 'NUMBER' },
     datos: { type: 'OBJECT', properties: {
       nombre: { type: 'STRING' }, nombres: { type: 'STRING' }, apellidoPaterno: { type: 'STRING' }, apellidoMaterno: { type: 'STRING' }, curp: { type: 'STRING' }, rfc: { type: 'STRING' }, domicilio: { type: 'STRING' }, fechaNacimiento: { type: 'STRING' }, lugarNacimiento: { type: 'STRING' }, ciudadNacimiento: { type: 'STRING' }, estadoNacimiento: { type: 'STRING' }, sexo: { type: 'STRING' }, nacionalidad: { type: 'STRING' },
       claveElector: { type: 'STRING' }, numeroDocumento: { type: 'STRING' }, seccion: { type: 'STRING' }, anioRegistro: { type: 'STRING' }, vigencia: { type: 'STRING' }, idmex: { type: 'STRING' }, cic: { type: 'STRING' }, ocr: { type: 'STRING' },
       fechaRegistro: { type: 'STRING' }, oficialia: { type: 'STRING' }, libro: { type: 'STRING' }, numeroActa: { type: 'STRING' }, municipioRegistro: { type: 'STRING' }, entidadRegistro: { type: 'STRING' }, nombrePadre: { type: 'STRING' }, nombreMadre: { type: 'STRING' },
       fechaDefuncion: { type: 'STRING' }, horaDefuncion: { type: 'STRING' }, lugarDefuncion: { type: 'STRING' }, causaDefuncion: { type: 'STRING' }, estadoCivil: { type: 'STRING' }, ocupacion: { type: 'STRING' }, conyuge: { type: 'STRING' }, declarante: { type: 'STRING' },
-      codigoPostal: { type: 'STRING' }, regimenFiscal: { type: 'STRING' }, regimenesFiscales: { type: 'ARRAY', items: { type: 'STRING' } }, actividadesEconomicas: { type: 'ARRAY', items: { type: 'STRING' } }, idCif: { type: 'STRING' }, notario: { type: 'STRING' }, numeroNotaria: { type: 'STRING' }, numeroInstrumento: { type: 'STRING' }, fechaInstrumento: { type: 'STRING' }, lugarOtorgamiento: { type: 'STRING' }, volumen: { type: 'STRING' }, herederos: { type: 'ARRAY', items: { type: 'STRING' } }, albacea: { type: 'STRING' },
+      codigoPostal: { type: 'STRING' }, regimenFiscal: { type: 'STRING' }, regimenesFiscales: { type: 'ARRAY', items: { type: 'STRING' } }, actividadesEconomicas: { type: 'ARRAY', items: { type: 'STRING' } }, idCif: { type: 'STRING' }, notario: { type: 'STRING' }, numeroNotaria: { type: 'STRING' }, numeroInstrumento: { type: 'STRING' }, fechaInstrumento: { type: 'STRING' }, lugarOtorgamiento: { type: 'STRING' }, volumen: { type: 'STRING' }, herederos: { type: 'ARRAY', items: { type: 'STRING' } }, albacea: { type: 'STRING' }, folioOficio: { type: 'STRING' }, fechaOficio: { type: 'STRING' }, resultadoBusqueda: { type: 'STRING' }, autoridadEmisora: { type: 'STRING' },
     } },
     advertencias: { type: 'ARRAY', items: { type: 'STRING' } },
   },
@@ -35,7 +35,12 @@ const fieldsByType: Record<string, string> = {
   Testamento: 'nombre completo del testador en nombre; además nombres, apellidoPaterno y apellidoMaterno; sexo, curp, nacionalidad, fechaNacimiento, lugarNacimiento, ciudadNacimiento, estadoNacimiento, estadoCivil, domicilio, ocupacion, nombrePadre, nombreMadre, numeroInstrumento, volumen, fechaInstrumento, notario, numeroNotaria, lugarOtorgamiento; únicamente las personas expresamente instituidas como herederas o legatarias en herederos; y la persona nombrada albacea en albacea',
   Poder: 'nombre del poderdante, numeroDocumento para el apoderado, numeroInstrumento, fechaInstrumento, notario y numeroNotaria',
   Escritura: 'numeroInstrumento, fechaInstrumento, notario, numeroNotaria, nombre del participante principal y domicilio del inmueble',
+  'Oficio de búsqueda registral': 'folioOficio, fechaOficio, autoridadEmisora, nombre de la persona buscada en nombre y resultadoBusqueda indicando claramente si se encontró o no disposición testamentaria y cualquier instrumento, volumen, fecha o notaría mencionados',
+  'Oficio de búsqueda notarial': 'folioOficio, fechaOficio, autoridadEmisora, nombre de la persona buscada en nombre y resultadoBusqueda indicando claramente si se encontró o no disposición testamentaria y cualquier instrumento, volumen, fecha o notaría mencionados',
 };
+
+const requirementType: Record<string, string> = { ACTA_DEFUNCION: 'Acta de defunción', ACTA_MATRIMONIO: 'Acta de matrimonio', ACTAS_NACIMIENTO: 'Acta de nacimiento', TESTAMENTO: 'Testamento', IDENTIFICACION: 'INE', CSF: 'CSF', DOS_TESTIGOS: 'INE' };
+const mimeFromName = (name: string) => name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : name.toLowerCase().endsWith('.png') ? 'image/png' : name.toLowerCase().endsWith('.webp') ? 'image/webp' : /\.jpe?g$/i.test(name) ? 'image/jpeg' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 async function googleAccessToken(vercelToken: string) {
   const number = process.env.GCP_PROJECT_NUMBER; const pool = process.env.GCP_WORKLOAD_IDENTITY_POOL_ID; const provider = process.env.GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID; const email = process.env.GCP_SERVICE_ACCOUNT_EMAIL;
@@ -65,10 +70,18 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     const { data: profile } = await supabase.from('perfiles').select('rol').eq('id', user.id).single();
     if (!['admin','notaria'].includes(profile?.rol)) return send(response, { message: 'No tienes acceso al módulo de Notaría.' }, 403);
     const parsedBody = typeof request.body === 'string' ? JSON.parse(request.body) : request.body;
-    const { documentId, force = false } = (parsedBody || {}) as { documentId?: string; force?: boolean };
-    if (!documentId) throw new Error('Documento no especificado.');
-    const { data: document, error } = await supabase.from('notaria_documentos_expediente').select('id,nombre_archivo,ruta,mime_type,texto_extraido,tipo_indicado,estado,analizado_con_ia,datos_extraidos').eq('id', documentId).single();
-    if (error || !document) throw new Error('Documento no encontrado o sin permiso de acceso.');
+    const { documentId, requirementId, force = false } = (parsedBody || {}) as { documentId?: string; requirementId?: string; force?: boolean };
+    if (!documentId && !requirementId) throw new Error('Documento no especificado.');
+    let document: any; const persistentDocument = !!documentId;
+    if (documentId) {
+      const result = await supabase.from('notaria_documentos_expediente').select('id,nombre_archivo,ruta,mime_type,texto_extraido,tipo_indicado,estado,analizado_con_ia,datos_extraidos').eq('id', documentId).single();
+      if (result.error || !result.data) throw new Error('Documento no encontrado o sin permiso de acceso.');
+      document = result.data;
+    } else {
+      const result = await supabase.from('notaria_sucesion_requisitos').select('id,nombre_archivo,ruta,codigo').eq('id', requirementId).single();
+      if (result.error || !result.data?.ruta) throw new Error('El requisito no tiene un documento disponible para analizar.');
+      document = { id: result.data.id, nombre_archivo: result.data.nombre_archivo, ruta: result.data.ruta, mime_type: mimeFromName(result.data.nombre_archivo || ''), texto_extraido: '', tipo_indicado: requirementType[result.data.codigo] || 'Otro', estado: 'por_revisar', analizado_con_ia: false, datos_extraidos: {} };
+    }
     if (document.estado === 'confirmado') throw new Error('El documento ya fue confirmado y no se modificará automáticamente.');
     if (document.analizado_con_ia && !force) return send(response, { ok: true, documentId: document.id, alreadyAnalyzed: true, extractedData: document.datos_extraidos || {} });
     const project = process.env.GCP_PROJECT_ID; const location = process.env.GCP_LOCATION || 'global'; const model = process.env.VERTEX_MODEL;
@@ -126,9 +139,11 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     const aiData = Object.fromEntries(Object.entries(output.datos || {}).filter(([, value]) => (typeof value === 'string' && value.trim()) || (Array.isArray(value) && value.some((item) => typeof item === 'string' && item.trim()))));
     if (!Object.keys(aiData).length) throw new Error('La IA no encontró datos verificables en el documento. Intenta con un escaneo más nítido.');
     const extracted = { ...(document.datos_extraidos || {}), ...aiData };
-    const { error: updateError } = await supabase.from('notaria_documentos_expediente').update({ tipo_detectado: output.tipoDocumento || 'Otro', rol_detectado: output.rolPersona || '', confianza: Math.max(0, Math.min(100, Number(output.confianza) || 0)), datos_extraidos: extracted, analizado_con_ia: true, proveedor_ia: 'vertex-ai-oidc', modelo_ia: raw.modelVersion || model, analizado_ia_el: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', document.id).select('id').single();
-    if (updateError) throw new Error(updateError.message);
-    await supabase.from('notaria_documentos_bitacora').insert({ documento_id: document.id, accion: 'analisis_ia', detalle: { proveedor: 'vertex-ai-oidc', modelo: raw.modelVersion || model, advertencias: output.advertencias || [] }, usuario_id: user.id });
+    if (persistentDocument) {
+      const { error: updateError } = await supabase.from('notaria_documentos_expediente').update({ tipo_detectado: output.tipoDocumento || 'Otro', rol_detectado: output.rolPersona || '', confianza: Math.max(0, Math.min(100, Number(output.confianza) || 0)), datos_extraidos: extracted, analizado_con_ia: true, proveedor_ia: 'vertex-ai-oidc', modelo_ia: raw.modelVersion || model, analizado_ia_el: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', document.id).select('id').single();
+      if (updateError) throw new Error(updateError.message);
+      await supabase.from('notaria_documentos_bitacora').insert({ documento_id: document.id, accion: 'analisis_ia', detalle: { proveedor: 'vertex-ai-oidc', modelo: raw.modelVersion || model, advertencias: output.advertencias || [] }, usuario_id: user.id });
+    }
     return send(response, { ok: true, documentId: document.id, extractedData: extracted, warnings: output.advertencias || [] });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'No se pudo analizar el documento.';

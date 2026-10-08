@@ -85,6 +85,14 @@ export const notaryInboxApi = {
     if (!data?.ok) throw new Error(data?.message || 'No se pudo analizar el documento con IA.');
     return data;
   },
+  async analyzeRequirementWithAi(requirementId: string) {
+    const { data: sessionData } = await supabase.auth.getSession(); const token = sessionData.session?.access_token;
+    if (!token) throw new Error('Tu sesión expiró. Inicia sesión nuevamente.');
+    const response = await fetch('/api/analyze-notary-document', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ requirementId, force: true }) });
+    const data = await response.json().catch(() => ({ message: 'La función devolvió una respuesta no válida.' }));
+    if (!response.ok || !data?.ok) throw new Error(data?.message || 'No se pudo analizar el documento con IA.');
+    return data as { ok: true; extractedData: NotaryExtractedData; warnings?: string[] };
+  },
   async review(id: string, input: { status: NotaryDocumentStatus; type: string; role: string; data: NotaryExtractedData; notes: string; clientId?: string }) {
     const { data: user } = await supabase.auth.getUser();
     const { error } = await supabase.from('notaria_documentos_expediente').update({ estado: input.status, tipo_confirmado: input.type, rol_confirmado: input.role, datos_extraidos: input.data, notas: input.notes, cliente_id: input.clientId || null, revisado_por: user.user?.id, revisado_el: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', id);
