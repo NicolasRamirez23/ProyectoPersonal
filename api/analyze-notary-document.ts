@@ -39,6 +39,7 @@ const responseSchema = {
         "Escritura",
         "Avalúo",
         "Predial",
+        "Certificado de no adeudo predial",
         "Certificado de libertad de gravamen",
         "Plano o medidas",
         "Antecedente de propiedad",
@@ -119,6 +120,8 @@ const responseSchema = {
         resultadoBusqueda: { type: "STRING" },
         autoridadEmisora: { type: "STRING" },
         claveCatastral: { type: "STRING" },
+        folioPredio: { type: "STRING" },
+        tipoAsentamiento: { type: "STRING" },
         folioReal: { type: "STRING" },
         ubicacionLinderos: { type: "STRING" },
         superficieTerreno: { type: "STRING" },
@@ -165,6 +168,8 @@ const fieldsByType: Record<string, string> = {
     "claveCatastral, domicilio del inmueble, ubicacionLinderos, superficieTerreno, superficieConstruccion, valorAvaluo, fechaAvaluo, valorFiscal y clasificacionInmueble",
   "Predial":
     "claveCatastral, folioReal, domicilio del inmueble, superficieTerreno, superficieConstruccion, valorFiscal y nombre del propietario",
+  "Certificado de no adeudo predial":
+    "claveCatastral, folioPredio y tipoAsentamiento. Extrae únicamente esos valores cuando estén expresamente identificados en el certificado; no confundas el folio del predio con el folio del trámite o del recibo",
   "Certificado de libertad de gravamen":
     "folioReal, claveCatastral, antecedentesPropiedad, nombre del titular, domicilio del inmueble y cualquier gravamen o limitación expresamente indicado",
   "Plano o medidas":

@@ -109,9 +109,9 @@ const usosCfdi = [
 ];
 const sections: Section[] = [
   { title: '1. Identificación del trámite', subtitle: 'Datos catastrales y naturaleza de la adquisición.', fields: [
-    { key: 'claveCatastral', label: 'Clave catastral' }, { key: 'folio', label: 'Folio del portal' }, { key: 'tipoPredio', label: 'Tipo', type: 'select', options: ['URBANO','SUBURBANO','RÚSTICO','ESPECIAL'] },
+    { key: 'claveCatastral', label: 'Clave catastral' }, { key: 'folioPredio', label: 'Folio del predio' }, { key: 'tipoAsentamiento', label: 'Tipo de asentamiento' }, { key: 'folio', label: 'Folio del portal' }, { key: 'tipoPredio', label: 'Tipo', type: 'select', options: ['URBANO','SUBURBANO','RÚSTICO','ESPECIAL'] },
     { key: 'naturalezaActo', label: 'Naturaleza del acto o concepto de la adquisición', type: 'select', options: naturalezaActoOptions, wide: true }, { key: 'descripcionAdquisicion', label: 'Descripción', type: 'textarea', wide: true },
-    { key: 'cartaNoPropiedad', label: 'Carta de no propiedad', type: 'checkbox' },
+    { key: 'cartaNoPropiedad', label: 'Carta de no propiedad entregada', type: 'checkbox' },
     { key: 'entreConyugesParientes', label: 'Entre cónyuges o parientes en línea recta', type: 'checkbox' },
     { key: 'aplicaArticulo39', label: 'Aplica Artículo 39', type: 'checkbox' },
     { key: 'usoInmuebleArticulo39', label: 'Uso del inmueble (Artículo 39)', dependsOn: 'aplicaArticulo39', wide: true },
@@ -146,13 +146,14 @@ const documentBlocks = [
   { key: 'acto', title: 'Escritura y antecedentes', hint: 'Sube la escritura completa y, si existe, el antecedente de propiedad.', minimum: 1, types: ['Escritura','Antecedente de propiedad'] },
   { key: 'enajenante', title: 'Enajenante', hint: 'Identificación, CURP, constancia fiscal y comprobante de domicilio.', minimum: 2, types: ['INE','CURP','CSF','Comprobante de domicilio'] },
   { key: 'adquiriente', title: 'Adquiriente(s)', hint: 'Identificación y constancia fiscal de cada adquiriente. Puedes agregar varios archivos.', minimum: 2, types: ['INE','CURP','CSF','Comprobante de domicilio'] },
-  { key: 'inmueble', title: 'Inmueble y valores', hint: 'Avalúo, predial, certificado de libertad de gravamen y plano o medidas.', minimum: 2, types: ['Avalúo','Predial','Certificado de libertad de gravamen','Plano o medidas'] },
+  { key: 'inmueble', title: 'Inmueble y valores', hint: 'Certificado de no adeudo predial, avalúo, predial, certificado de libertad de gravamen y plano o medidas.', minimum: 2, types: ['Certificado de no adeudo predial','Avalúo','Predial','Certificado de libertad de gravamen','Plano o medidas'] },
   { key: 'otros', title: 'Anexos adicionales', hint: 'Carta de no propiedad, poderes, permisos u otros anexos aplicables.', minimum: 0, types: ['Poder','Carta de no propiedad','Otro'] },
 ];
 const initialData: IsabiData = { tipoPredio: 'URBANO', naturalezaActo: 'I-A. COMPRAVENTA', personaTipo: 'FÍSICA', lugarOtorgamiento: 'LA PAZ, B.C.S.', cartaNoPropiedad: false, entreConyugesParientes: false, aplicaArticulo39: false, cesionDerechosHereditarios: false, tramitePorcentaje: false };
 const inferDocumentType = (block: typeof documentBlocks[number], name: string) => {
   const normalized = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
   if (normalized.includes('AVALUO')) return 'Avalúo';
+  if (normalized.includes('NO ADEUDO') && normalized.includes('PREDIAL')) return 'Certificado de no adeudo predial';
   if (normalized.includes('PREDIAL')) return 'Predial';
   if (normalized.includes('GRAVAMEN') || normalized.includes('LIBERTAD')) return 'Certificado de libertad de gravamen';
   if (normalized.includes('PLANO') || normalized.includes('MEDIDA') || normalized.includes('LINDERO')) return 'Plano o medidas';
@@ -161,6 +162,7 @@ const inferDocumentType = (block: typeof documentBlocks[number], name: string) =
   if (normalized.includes('DOMICILIO') || normalized.includes('RECIBO')) return 'Comprobante de domicilio';
   if (normalized.includes('CURP')) return 'CURP';
   if (normalized.includes('INE') || normalized.includes('IDENTIFICACION')) return 'INE';
+  if (normalized.includes('CARTA') && normalized.includes('PROPIEDAD')) return 'Carta de no propiedad';
   return block.types[0] || 'Otro';
 };
 
@@ -171,7 +173,7 @@ const normalizeExtracted = (raw: Record<string, unknown>): Record<string, string
     nombres: string('nombres') || string('nombre'), apellidoPaterno: string('apellidoPaterno'), apellidoMaterno: string('apellidoMaterno'), rfc: string('rfc'), regimenFiscal: string('regimenFiscal'), codigoPostalFiscal: string('codigoPostal'), domicilioFiscal: string('domicilio'),
     datosAdquiriente: fullName, escrituraNumero: string('numeroInstrumento'), volumen: string('volumen'), fechaEscritura: string('fechaInstrumento'), lugarOtorgamiento: string('lugarOtorgamiento'),
     naturalezaActo: string('naturalezaActo'), descripcionAdquisicion: string('descripcionAdquisicion'), actoTraslativo: string('actoTraslativo'), fechaOtorgamiento: string('fechaOtorgamiento'), fechaFirma: string('fechaFirma'),
-    claveCatastral: string('claveCatastral'), folioReal: string('folioReal'), ubicacionLinderos: string('ubicacionLinderos') || string('medidasLinderos'), superficieTerreno: string('superficieTerreno'), superficieConstruccion: string('superficieConstruccion'),
+    claveCatastral: string('claveCatastral'), folioPredio: string('folioPredio'), tipoAsentamiento: string('tipoAsentamiento'), folioReal: string('folioReal'), ubicacionLinderos: string('ubicacionLinderos') || string('medidasLinderos'), superficieTerreno: string('superficieTerreno'), superficieConstruccion: string('superficieConstruccion'),
     valorFiscal: string('valorFiscal'), valorOperacion: string('valorOperacion'), valorAvaluo: string('valorAvaluo'), fechaAvaluo: string('fechaAvaluo'), antecedentesPropiedad: string('antecedentesPropiedad'), clasificacionInmueble: string('clasificacionInmueble'),
     notificacionCalle: string('calle'), notificacionExterior: string('numeroExterior'), notificacionInterior: string('numeroInterior'), notificacionColonia: string('colonia'), notificacionEstado: string('estado'), notificacionCp: string('codigoPostal'), correoElectronico: string('correoElectronico'),
   };
@@ -199,6 +201,7 @@ export function IsabiPage() {
         const normalized = normalizeExtracted(result.data as Record<string, unknown>);
         setData((current) => {
           const next = { ...current };
+          if (expectedType === 'Carta de no propiedad') next.cartaNoPropiedad = true;
           for (const [key, value] of Object.entries(normalized)) if (value && !String(next[key] || '').trim()) next[key] = value.toUpperCase();
           const identityLines = [
             normalized.datosAdquiriente && `NOMBRE: ${normalized.datosAdquiriente}`,
@@ -210,7 +213,7 @@ export function IsabiPage() {
           next.datosAdquiriente = summary.toUpperCase();
           return next;
         });
-        const allowedKeys = new Set(['nombre','nombres','apellidoPaterno','apellidoMaterno','rfc','domicilio','calle','numeroExterior','numeroInterior','colonia','ciudad','estado','codigoPostal','regimenFiscal','regimenesFiscales','numeroInstrumento','fechaInstrumento','lugarOtorgamiento','volumen','naturalezaActo','descripcionAdquisicion','actoTraslativo','fechaOtorgamiento','fechaFirma','claveCatastral','folioReal','ubicacionLinderos','medidasLinderos','superficieTerreno','superficieConstruccion','valorFiscal','valorOperacion','valorAvaluo','fechaAvaluo','antecedentesPropiedad','clasificacionInmueble','correoElectronico']);
+        const allowedKeys = new Set(['nombre','nombres','apellidoPaterno','apellidoMaterno','rfc','domicilio','calle','numeroExterior','numeroInterior','colonia','ciudad','estado','codigoPostal','regimenFiscal','regimenesFiscales','numeroInstrumento','fechaInstrumento','lugarOtorgamiento','volumen','naturalezaActo','descripcionAdquisicion','actoTraslativo','fechaOtorgamiento','fechaFirma','claveCatastral','folioPredio','tipoAsentamiento','folioReal','ubicacionLinderos','medidasLinderos','superficieTerreno','superficieConstruccion','valorFiscal','valorOperacion','valorAvaluo','fechaAvaluo','antecedentesPropiedad','clasificacionInmueble','correoElectronico']);
         const relevantData = Object.fromEntries(Object.entries(result.data as Record<string, unknown>).filter(([key]) => allowedKeys.has(key)));
         setDocuments((current) => [...current, { block: block.key, expectedType: result.type || expectedType || 'Otro', file, extractedData: relevantData, confidence: result.confidence, warnings: result.warnings || [] }]);
       }
