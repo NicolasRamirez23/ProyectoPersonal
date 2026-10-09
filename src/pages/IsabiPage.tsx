@@ -109,7 +109,7 @@ const usosCfdi = [
 ];
 const sections: Section[] = [
   { title: '1. Identificación del trámite', subtitle: 'Datos catastrales y naturaleza de la adquisición.', fields: [
-    { key: 'claveCatastral', label: 'Clave catastral' }, { key: 'folioPredio', label: 'Folio del predio' }, { key: 'tipoPredio', label: 'Tipo', type: 'select', options: ['URBANO','SUBURBANO','RÚSTICO','ESPECIAL'] },
+    { key: 'claveCatastral', label: 'Clave catastral' }, { key: 'folio', label: 'Folio' }, { key: 'tipoPredio', label: 'Tipo', type: 'select', options: ['URBANO','SUBURBANO','RÚSTICO','ESPECIAL'] },
     { key: 'naturalezaActo', label: 'Naturaleza del acto o concepto de la adquisición', type: 'select', options: naturalezaActoOptions, wide: true }, { key: 'descripcionAdquisicion', label: 'Descripción', type: 'textarea', wide: true },
     { key: 'cartaNoPropiedad', label: 'Carta de no propiedad entregada', type: 'checkbox' },
     { key: 'entreConyugesParientes', label: 'Entre cónyuges o parientes en línea recta', type: 'checkbox' },
@@ -265,14 +265,14 @@ const normalizeExtracted = (raw: Record<string, unknown>): Record<string, string
     nombres: personaTipo === 'MORAL' ? razonSocial : string('nombres') || string('nombre'), apellidoPaterno: personaTipo === 'MORAL' ? '' : string('apellidoPaterno'), apellidoMaterno: personaTipo === 'MORAL' ? '' : string('apellidoMaterno'), rfc, personaTipo, regimenFiscal: string('regimenFiscal'), codigoPostalFiscal: string('codigoPostal'), domicilioFiscal: string('domicilio'),
     escrituraNumero: string('numeroInstrumento'), volumen: string('volumen'), fechaEscritura: string('fechaInstrumento'), lugarOtorgamiento: string('lugarOtorgamiento'),
     naturalezaActo: classifyNature(string('naturalezaActo'), string('descripcionAdquisicion'), string('actoTraslativo')), descripcionAdquisicion: acquisitionDescription(string('naturalezaActo'), string('descripcionAdquisicion'), string('actoTraslativo')), actoTraslativo: matchCatalog(string('actoTraslativo'), actosTraslativos), fechaOtorgamiento: string('fechaOtorgamiento'), fechaFirma: string('fechaFirma'), estadoEscritura: string('estadoEscritura'), municipioEscritura: string('municipioEscritura'), datosEnajenante: list('enajenantes'), datosAdquiriente: fullName,
-    claveCatastral: formatClaveCatastral(string('claveCatastral')), folioPredio: string('folioPredio'), tipoPredio: matchCatalog(string('tipoAsentamiento'), ['URBANO','SUBURBANO','RÚSTICO','ESPECIAL']), folioReal: string('folioReal'), ubicacionLinderos: string('ubicacionLinderos') || string('medidasLinderos'), superficieTerreno: string('superficieTerreno'), superficieConstruccion: string('superficieConstruccion'),
+    claveCatastral: formatClaveCatastral(string('claveCatastral')), folio: string('folioPredio'), tipoPredio: matchCatalog(string('tipoAsentamiento'), ['URBANO','SUBURBANO','RÚSTICO','ESPECIAL']), folioReal: string('folioReal'), ubicacionLinderos: string('ubicacionLinderos') || string('medidasLinderos'), superficieTerreno: string('superficieTerreno'), superficieConstruccion: string('superficieConstruccion'),
     valorFiscal: string('valorFiscal'), valorOperacion: string('valorOperacion'), valorAvaluo: string('valorAvaluo'), fechaAvaluo: string('fechaAvaluo'), antecedentesPropiedad: string('antecedentesPropiedad'), clasificacionInmueble: string('clasificacionInmueble'),
     notificacionCalle: string('calle'), notificacionExterior: string('numeroExterior'), notificacionInterior: string('numeroInterior'), notificacionColonia: string('colonia'), notificacionEstado: string('estado'), notificacionCp: string('codigoPostal'), correoElectronico: string('correoElectronico'),
   };
 };
 const formKeysByDocument: Record<string, string[]> = {
   Escritura: ['naturalezaActo','descripcionAdquisicion','actoTraslativo','volumen','escrituraNumero','fechaEscritura','estadoEscritura','municipioEscritura','lugarOtorgamiento','fechaOtorgamiento','fechaFirma','datosEnajenante','valorOperacion'],
-  'Certificado de no adeudo predial': ['claveCatastral','folioPredio','tipoPredio','valorFiscal'],
+  'Certificado de no adeudo predial': ['claveCatastral','folio','tipoPredio','valorFiscal'],
   CSF: ['nombres','apellidoPaterno','apellidoMaterno','rfc','personaTipo','regimenFiscal','codigoPostalFiscal','domicilioFiscal','datosAdquiriente'],
   'Avalúo': ['valorAvaluo','fechaAvaluo'],
   'Plano o medidas': ['superficieTerreno','superficieConstruccion'],
