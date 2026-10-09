@@ -151,7 +151,7 @@ const documentBlocks = [
   { key: 'otros', title: 'Anexos adicionales', hint: 'Carta de no propiedad, poderes, permisos u otros anexos aplicables.', minimum: 0, types: ['Poder','Carta de no propiedad','Otro'] },
 ];
 const emptyParty = (): IsabiParty => ({ personaTipo: 'FÍSICA', rfc: '', curp: '', nombres: '', apellidoPaterno: '', apellidoMaterno: '', telefono: '', correo: '', porcentajeDominioDirecto: '', porcentajeUsufructo: '', regimenFiscal: '', codigoPostalFiscal: '', domicilioFiscal: '', csfArchivo: '' });
-const initialData: IsabiData = { tipoPredio: 'URBANO', naturalezaActo: 'I-A. COMPRAVENTA', personaTipo: 'FÍSICA', usoCfdi: 'CP01 - PAGOS', lugarOtorgamiento: 'LA PAZ, B.C.S.', cartaNoPropiedad: false, entreConyugesParientes: false, aplicaArticulo39: false, cesionDerechosHereditarios: false, tramitePorcentaje: false, notificacionEstado: 'BAJA CALIFORNIA SUR', notificacionColonia: 'VICENTE GUERRERO', notificacionCp: '23020', notificacionCalle: '16 DE SEPTIEMBRE', notificacionExterior: '1685', notificacionInterior: '', correoElectronico: '', adquirientesDetalle: [] };
+const initialData: IsabiData = { tipoPredio: '', naturalezaActo: '', personaTipo: 'FÍSICA', usoCfdi: 'CP01 - PAGOS', lugarOtorgamiento: 'LA PAZ, B.C.S.', cartaNoPropiedad: false, entreConyugesParientes: false, aplicaArticulo39: false, cesionDerechosHereditarios: false, tramitePorcentaje: false, notificacionEstado: 'BAJA CALIFORNIA SUR', notificacionColonia: 'VICENTE GUERRERO', notificacionCp: '23020', notificacionCalle: '16 DE SEPTIEMBRE', notificacionExterior: '1685', notificacionInterior: '', correoElectronico: '', adquirientesDetalle: [] };
 const inferDocumentType = (block: typeof documentBlocks[number], name: string) => {
   const normalized = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
   if (normalized.includes('AVALUO')) return 'Avalúo';
@@ -271,7 +271,7 @@ const normalizeExtracted = (raw: Record<string, unknown>): Record<string, string
   };
 };
 const formKeysByDocument: Record<string, string[]> = {
-  Escritura: ['naturalezaActo','descripcionAdquisicion','actoTraslativo','volumen','escrituraNumero','fechaEscritura','estadoEscritura','municipioEscritura','lugarOtorgamiento','fechaOtorgamiento','fechaFirma','datosEnajenante','valorOperacion'],
+  Escritura: ['naturalezaActo','descripcionAdquisicion','actoTraslativo','volumen','escrituraNumero','fechaEscritura','estadoEscritura','municipioEscritura','lugarOtorgamiento','fechaOtorgamiento','fechaFirma','datosEnajenante'],
   'Certificado de no adeudo predial': ['claveCatastral','folio','tipoPredio','valorFiscal'],
   CSF: ['nombres','apellidoPaterno','apellidoMaterno','rfc','personaTipo','regimenFiscal','codigoPostalFiscal','domicilioFiscal','datosAdquiriente'],
   'Avalúo': ['valorAvaluo','fechaAvaluo'],
@@ -335,14 +335,14 @@ export function IsabiPage() {
       for (const file of Array.from(files)) {
         if (file.size > 15 * 1024 * 1024) throw new Error(`${file.name} supera 15 MB.`);
         const expectedType = inferDocumentType(block, file.name);
-        const result = await notaryInboxApi.analyzeDraftWithAi(file, expectedType, setProgress);
+        const result = await notaryInboxApi.analyzeDraftWithAi(file, expectedType, setProgress, { claveCatastral: String(data.claveCatastral || '') });
         const extractedData = { ...(result.data as Record<string, unknown>) };
         if (expectedType === 'Certificado de no adeudo predial') {
           const fallback = extractPredialCertificateFallback(result.text || '');
           if (!String(extractedData.claveCatastral || '').trim() && fallback.claveCatastral) extractedData.claveCatastral = fallback.claveCatastral;
           if (!String(extractedData.folioPredio || '').trim() && fallback.folioPredio) extractedData.folioPredio = fallback.folioPredio;
           if (!String(extractedData.tipoAsentamiento || '').trim() && fallback.tipoAsentamiento) extractedData.tipoAsentamiento = fallback.tipoAsentamiento;
-          if (fallback.valorFiscal) extractedData.valorFiscal = fallback.valorFiscal;
+          if (!String(extractedData.valorFiscal || '').trim() && fallback.valorFiscal) extractedData.valorFiscal = fallback.valorFiscal;
         }
         if (expectedType === 'Avalúo') {
           const fallback = extractAvaluoFallback(result.text || '');
@@ -400,6 +400,7 @@ export function IsabiPage() {
               if (typeof property.superficieConstruccion === 'string') next.superficieConstruccion = property.superficieConstruccion.replace(/,/g, '');
               if (typeof property.ubicacionLinderos === 'string') next.ubicacionLinderos = property.ubicacionLinderos.toUpperCase();
               if (typeof property.antecedentesPropiedad === 'string') next.antecedentesPropiedad = property.antecedentesPropiedad.toUpperCase();
+              if (typeof property.valorOperacion === 'string') next.valorOperacion = property.valorOperacion.replace(/[$,\s]/g, '');
             }
           }
           const sourceKeys = new Set(formKeysByDocument[expectedType] || []);
@@ -417,6 +418,7 @@ export function IsabiPage() {
               if (typeof property.superficieConstruccion === 'string') next.superficieConstruccion = property.superficieConstruccion.replace(/,/g, '');
               if (typeof property.ubicacionLinderos === 'string') next.ubicacionLinderos = property.ubicacionLinderos.toUpperCase();
               if (typeof property.antecedentesPropiedad === 'string') next.antecedentesPropiedad = property.antecedentesPropiedad.toUpperCase();
+              if (typeof property.valorOperacion === 'string') next.valorOperacion = property.valorOperacion.replace(/[$,\s]/g, '');
             }
           }
           return next;

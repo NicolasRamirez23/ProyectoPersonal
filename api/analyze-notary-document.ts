@@ -148,8 +148,9 @@ const responseSchema = {
               superficieConstruccion: { type: "STRING" },
               ubicacionLinderos: { type: "STRING" },
               antecedentesPropiedad: { type: "STRING" },
+              valorOperacion: { type: "STRING" },
             },
-            required: ["claveCatastral", "clasificacionInmueble", "superficieTerreno", "superficieConstruccion", "ubicacionLinderos", "antecedentesPropiedad"],
+            required: ["claveCatastral", "clasificacionInmueble", "superficieTerreno", "superficieConstruccion", "ubicacionLinderos", "antecedentesPropiedad", "valorOperacion"],
           },
         },
         herederos: { type: "ARRAY", items: { type: "STRING" } },
@@ -360,6 +361,7 @@ export default async function handler(
         expectedType: string;
         base64?: string;
         extractedText?: string;
+        claveCatastralReferencia?: string;
       };
       force?: boolean;
     };
@@ -377,6 +379,7 @@ export default async function handler(
         texto_extraido: transientDocument.extractedText || "",
         archivo_base64: transientDocument.base64 || "",
         tipo_indicado: transientDocument.expectedType || "Otro",
+        clave_catastral_referencia: transientDocument.claveCatastralReferencia || "",
         estado: "por_revisar",
         analizado_con_ia: false,
         datos_extraidos: {},
@@ -434,9 +437,9 @@ export default async function handler(
     const typeContext = document.tipo_indicado
       ? `El operador indicó que espera un documento de tipo: ${document.tipo_indicado}. Usa esa indicación como contexto, pero advierte si el contenido no corresponde.`
       : "El operador solicitó detección automática del tipo.";
-    const requestedFields =
-      fieldsByType[document.tipo_indicado] ||
-      "solo los campos claramente presentes que correspondan al tipo detectado";
+    const requestedFields = (fieldsByType[document.tipo_indicado] ||
+      "solo los campos claramente presentes que correspondan al tipo detectado") +
+      (document.tipo_indicado === "Escritura" ? ` Separa rigurosamente cada inmueble. En cada elemento de inmueblesEscritura devuelve valorOperacion únicamente con el monto asignado expresamente a ese inmueble; si solo hay un precio conjunto sin desglose, déjalo vacío.${document.clave_catastral_referencia ? ` La clave seleccionada del certificado predial es ${document.clave_catastral_referencia}; prioriza ese inmueble sin mezclar sus superficies, linderos, antecedentes o valor con otros.` : ""}` : "");
     const testamentoInstruction =
       document.tipo_indicado === "Testamento"
         ? "Lee toda la página de arriba hacia abajo, incluidas DECLARACIONES y CLÁUSULAS. Devuelve el nombre completo de la testadora en nombre aunque también lo separes en nombres y apellidos. Distingue estrictamente entre hijos o herederos y albacea: coloca en herederos solamente a quienes el documento identifica expresamente como hijos, herederos o legatarios; coloca a la persona nombrada albacea únicamente en albacea, salvo que el texto también la instituya expresamente como heredera. Si dos hijos comparten apellidos, devuelve cada nombre completo por separado, conservando esos apellidos."

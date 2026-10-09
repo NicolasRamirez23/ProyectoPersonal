@@ -17,7 +17,7 @@ async function audit(documentId: string, action: string, detail: Record<string, 
 }
 
 export const notaryInboxApi = {
-  async analyzeDraftWithAi(file: File, expectedType: string, progress?: (message: string) => void) {
+  async analyzeDraftWithAi(file: File, expectedType: string, progress?: (message: string) => void, context?: { claveCatastral?: string }) {
     progress?.('Preparando el documento para la lectura con IA…');
     const visual = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(file.type);
     const sendOriginal = visual && file.size <= 2.5 * 1024 * 1024;
@@ -47,7 +47,7 @@ export const notaryInboxApi = {
       const response = await fetch('/api/analyze-notary-document', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transientDocument: { name: file.name, mimeType: file.type, expectedType, base64, extractedText: base64 ? '' : local.text.slice(0, 300000) } }),
+        body: JSON.stringify({ transientDocument: { name: file.name, mimeType: file.type, expectedType, base64, extractedText: base64 ? '' : local.text.slice(0, 300000), claveCatastralReferencia: context?.claveCatastral || '' } }),
         signal: controller.signal,
       });
       const result = await response.json().catch(() => ({ message: 'La función devolvió una respuesta no válida.' }));
