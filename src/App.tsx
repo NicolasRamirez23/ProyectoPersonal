@@ -37,6 +37,7 @@ import { NotarySuccessionsPage } from './pages/NotarySuccessionsPage';
 import { NotarySuccessionDetailPage } from './pages/NotarySuccessionDetailPage';
 import { NotaryDocumentInboxPage } from './pages/NotaryDocumentInboxPage';
 import { NotaryPublicRegistrySearchPage } from './pages/NotaryPublicRegistrySearchPage';
+import { IsabiPage } from './pages/IsabiPage';
 
 function AppShell() {
   return <AppLayout><Outlet /></AppLayout>;
@@ -73,6 +74,7 @@ export default function App() {
                 <Route path="/notaria/sucesiones" element={<NotarySuccessionsPage />} />
                 <Route path="/notaria/sucesiones/:id" element={<NotarySuccessionDetailPage />} />
                 <Route path="/notaria/recepcion" element={<NotaryDocumentInboxPage />} />
+                <Route path="/notaria/isabi" element={<IsabiPage />} />
               </Route>
               <Route element={<ProtectedRoute allowedRoles={['admin', 'importaciones_lara']} />}>
                 <Route path="/importaciones-lara" element={<ImportacionesLaraListPage />} />

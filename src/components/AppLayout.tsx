@@ -14,7 +14,7 @@ import {
   ChevronDown, // 🚀 Nuevo para subcarpetas
   Building2    // 🚀 Icono para identificar el módulo de Propiedades
 } from 'lucide-react';
-import { DraftingCompass, Code2, ContactRound, PackageSearch, ReceiptText, Boxes, Landmark, FileSpreadsheet, Split, Scale, FileSearch, FolderKanban, ScanLine } from 'lucide-react';
+import { DraftingCompass, Code2, ContactRound, PackageSearch, ReceiptText, Boxes, Landmark, FileSpreadsheet, Split, Scale, FileSearch, FolderKanban, ScanLine, FileInput } from 'lucide-react';
 import { LogOut } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -57,6 +57,7 @@ export function AppLayout({ children }: LayoutProps) {
         { to: '/notaria/recepcion', label: 'Documentos', icon: ScanLine, roles: ['admin', 'notaria'] },
         { to: '/notaria/calendario', label: 'Calendario', icon: Calendar, roles: ['admin', 'notaria'] },
         { to: '/notaria', label: 'Formatos', icon: FileSearch, roles: ['admin', 'notaria'] },
+        { to: '/notaria/isabi', label: 'Expedientes ISABI', icon: FileInput, roles: ['admin', 'notaria'] },
       ]
     },
     {

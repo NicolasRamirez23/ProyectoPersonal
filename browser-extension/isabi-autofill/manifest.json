@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "AvTech ISABI Autollenado",
+  "version": "0.1.0",
+  "description": "Completa el formulario ISABI usando un expediente revisado en AvTech.",
+  "permissions": ["activeTab", "scripting"],
+  "action": {
+    "default_title": "Llenar ISABI",
+    "default_popup": "popup.html"
+  }
+}

@@ -37,6 +37,11 @@ const responseSchema = {
         "Testamento",
         "Poder",
         "Escritura",
+        "Avalúo",
+        "Predial",
+        "Certificado de libertad de gravamen",
+        "Plano o medidas",
+        "Antecedente de propiedad",
         "Oficio de búsqueda registral",
         "Oficio de búsqueda notarial",
         "Otro",
@@ -108,6 +113,18 @@ const responseSchema = {
         fechaOficio: { type: "STRING" },
         resultadoBusqueda: { type: "STRING" },
         autoridadEmisora: { type: "STRING" },
+        claveCatastral: { type: "STRING" },
+        folioReal: { type: "STRING" },
+        ubicacionLinderos: { type: "STRING" },
+        superficieTerreno: { type: "STRING" },
+        superficieConstruccion: { type: "STRING" },
+        valorFiscal: { type: "STRING" },
+        valorOperacion: { type: "STRING" },
+        valorAvaluo: { type: "STRING" },
+        fechaAvaluo: { type: "STRING" },
+        antecedentesPropiedad: { type: "STRING" },
+        clasificacionInmueble: { type: "STRING" },
+        correoElectronico: { type: "STRING" },
       },
     },
     advertencias: { type: "ARRAY", items: { type: "STRING" } },
@@ -138,7 +155,17 @@ const fieldsByType: Record<string, string> = {
   Poder:
     "nombre del poderdante, numeroDocumento para el apoderado, numeroInstrumento, fechaInstrumento, notario y numeroNotaria",
   Escritura:
-    "numeroInstrumento, fechaInstrumento, notario, numeroNotaria, nombre del participante principal y domicilio del inmueble",
+    "numeroInstrumento, volumen, fechaInstrumento, lugarOtorgamiento, notario, numeroNotaria, nombres de enajenantes y adquirientes, domicilio del inmueble, claveCatastral, folioReal, ubicacionLinderos, superficieTerreno, superficieConstruccion, valorOperacion, antecedentesPropiedad y clasificacionInmueble",
+  "Avalúo":
+    "claveCatastral, domicilio del inmueble, ubicacionLinderos, superficieTerreno, superficieConstruccion, valorAvaluo, fechaAvaluo, valorFiscal y clasificacionInmueble",
+  "Predial":
+    "claveCatastral, folioReal, domicilio del inmueble, superficieTerreno, superficieConstruccion, valorFiscal y nombre del propietario",
+  "Certificado de libertad de gravamen":
+    "folioReal, claveCatastral, antecedentesPropiedad, nombre del titular, domicilio del inmueble y cualquier gravamen o limitación expresamente indicado",
+  "Plano o medidas":
+    "claveCatastral, ubicacionLinderos, superficieTerreno, superficieConstruccion y domicilio del inmueble",
+  "Antecedente de propiedad":
+    "folioReal, claveCatastral, antecedentesPropiedad, numeroInstrumento, volumen, fechaInstrumento, notario, numeroNotaria y domicilio del inmueble",
   "Oficio de búsqueda registral":
     "folioOficio, fechaOficio, autoridadEmisora, nombre de la persona buscada en nombre y resultadoBusqueda indicando claramente si se encontró o no disposición testamentaria y cualquier instrumento, volumen, fecha o notaría mencionados",
   "Oficio de búsqueda notarial":
