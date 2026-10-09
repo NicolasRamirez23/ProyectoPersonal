@@ -115,7 +115,25 @@ const responseSchema = {
         estadoEscritura: { type: "STRING" },
         municipioEscritura: { type: "STRING" },
         enajenantes: { type: "ARRAY", items: { type: "STRING" } },
-        adquirientes: { type: "ARRAY", items: { type: "STRING" } },
+        adquirientes: {
+          type: "ARRAY",
+          items: {
+            type: "OBJECT",
+            properties: {
+              personaTipo: { type: "STRING" },
+              rfc: { type: "STRING" },
+              curp: { type: "STRING" },
+              nombres: { type: "STRING" },
+              apellidoPaterno: { type: "STRING" },
+              apellidoMaterno: { type: "STRING" },
+              telefono: { type: "STRING" },
+              correo: { type: "STRING" },
+              porcentajeDominioDirecto: { type: "STRING" },
+              porcentajeUsufructo: { type: "STRING" },
+            },
+            required: ["personaTipo", "rfc", "curp", "nombres", "apellidoPaterno", "apellidoMaterno", "telefono", "correo", "porcentajeDominioDirecto", "porcentajeUsufructo"],
+          },
+        },
         herederos: { type: "ARRAY", items: { type: "STRING" } },
         albacea: { type: "STRING" },
         disposicionPrincipal: { type: "STRING" },
@@ -167,15 +185,15 @@ const fieldsByType: Record<string, string> = {
   Poder:
     "nombre del poderdante, numeroDocumento para el apoderado, numeroInstrumento, fechaInstrumento, notario y numeroNotaria",
   Escritura:
-    "numeroInstrumento, volumen, fechaInstrumento, fechaOtorgamiento, fechaFirma, lugarOtorgamiento, estadoEscritura, municipioEscritura, notario, numeroNotaria, cada nombre completo de la parte enajenante en enajenantes, cada nombre completo de la parte adquiriente en adquirientes, naturalezaActo usando el texto jurídico explícito del acto, descripcionAdquisicion, actoTraslativo, domicilio del inmueble, claveCatastral, folioReal, ubicacionLinderos, superficieTerreno, superficieConstruccion, valorOperacion, antecedentesPropiedad y clasificacionInmueble. Examina encabezado, comparecencia, declaraciones, cláusulas y certificaciones. No decidas exenciones, parentesco, aplicación del artículo 39, cesión hereditaria ni trámite porcentual: esas condiciones requieren confirmación humana",
+    "numeroInstrumento, volumen, fechaInstrumento, fechaOtorgamiento, fechaFirma, lugarOtorgamiento, estadoEscritura, municipioEscritura, notario, numeroNotaria, cada nombre completo de la parte enajenante en enajenantes; y para cada adquiriente devuelve personaTipo, rfc, curp, nombres, apellidoPaterno, apellidoMaterno, telefono, correo, porcentajeDominioDirecto y porcentajeUsufructo en adquirientes. Extrae naturalezaActo usando el texto jurídico explícito, descripcionAdquisicion y actoTraslativo. Examina encabezado, comparecencia, declaraciones, cláusulas y certificaciones. No obtengas datos fiscales de facturación desde la escritura y no decidas exenciones, parentesco, aplicación del artículo 39, cesión hereditaria ni trámite porcentual: esas condiciones requieren confirmación humana",
   "Avalúo":
-    "claveCatastral, domicilio del inmueble, ubicacionLinderos, superficieTerreno, superficieConstruccion, valorAvaluo, fechaAvaluo, valorFiscal y clasificacionInmueble",
+    "valorOperacion, valorAvaluo y fechaAvaluo. Extrae exclusivamente esos tres datos del avalúo; no uses valores fiscales, catastrales, superficies ni otros importes para completar estos campos. Distingue expresamente el valor de operación del valor de avalúo y devuelve la fecha como YYYY-MM-DD",
   "Predial":
     "claveCatastral, folioReal, domicilio del inmueble, superficieTerreno, superficieConstruccion, valorFiscal y nombre del propietario",
   "Certificado de no adeudo predial":
-    "claveCatastral, folioPredio y tipoAsentamiento. Extrae únicamente esos valores cuando estén expresamente identificados en el certificado; no confundas el folio del predio con el folio del trámite o del recibo",
+    "claveCatastral conservando o restituyendo sus guiones, folioPredio y tipoAsentamiento. Extrae únicamente esos valores cuando estén expresamente identificados en el certificado; no confundas el folio del predio con el folio del trámite o del recibo",
   "Certificado de libertad de gravamen":
-    "folioReal, claveCatastral, antecedentesPropiedad, nombre del titular, domicilio del inmueble y cualquier gravamen o limitación expresamente indicado",
+    "ubicacionLinderos o medidasLinderos conservando completa la descripción de ubicación, medidas, rumbos, colindancias y linderos; además folioReal y claveCatastral cuando aparezcan. No resumas ni omitas colindancias",
   "Plano o medidas":
     "claveCatastral, ubicacionLinderos, superficieTerreno, superficieConstruccion y domicilio del inmueble",
   "Antecedente de propiedad":
