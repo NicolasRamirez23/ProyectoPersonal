@@ -29,16 +29,13 @@ async function renderPdfPage(page: any) {
   return canvas;
 }
 
-async function pdfText(file: File, progress?: (message: string) => void) {
+async function pdfText(file: File, progress?: (message: string) => void, expectedType = "") {
   const pdf = await getDocument({
     data: new Uint8Array(await file.arrayBuffer()),
   }).promise;
   const pages: string[] = [];
-  for (
-    let pageNumber = 1;
-    pageNumber <= Math.min(pdf.numPages, 15);
-    pageNumber += 1
-  ) {
+  const directPages = Array.from({ length: Math.min(pdf.numPages, 60) }, (_, index) => index + 1);
+  for (const pageNumber of directPages) {
     progress?.(`Leyendo texto de la página ${pageNumber}…`);
     const content = await (await pdf.getPage(pageNumber)).getTextContent();
     pages.push(content.items.map((item: any) => item.str || "").join(" "));
@@ -50,11 +47,10 @@ async function pdfText(file: File, progress?: (message: string) => void) {
   const worker = await createWorker("spa");
   try {
     const recognized: string[] = [];
-    for (
-      let pageNumber = 1;
-      pageNumber <= Math.min(pdf.numPages, 5);
-      pageNumber += 1
-    ) {
+    const firstPages = Array.from({ length: Math.min(pdf.numPages, expectedType === "Avalúo" ? 4 : 5) }, (_, index) => index + 1);
+    const lastPages = expectedType === "Avalúo" ? Array.from({ length: Math.min(pdf.numPages, 6) }, (_, index) => pdf.numPages - index) : [];
+    const ocrPages = [...new Set([...firstPages, ...lastPages])].sort((a, b) => a - b);
+    for (const pageNumber of ocrPages) {
       progress?.(`Aplicando OCR local a la página ${pageNumber}…`);
       const canvas = await renderPdfPage(await pdf.getPage(pageNumber));
       const original = (await worker.recognize(canvas)).data.text;
@@ -502,6 +498,13 @@ function testamentData(text: string) {
 }
 
 function csfData(text: string) {
+  const rfc = normalized(text).match(/\b[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}\b/)?.[0] || "";
+  const personaTipo = rfc.length === 12 ? "MORAL" : "FÍSICA";
+  const razonSocial = firstBetween(
+    text,
+    ["Denominaci[oó]n\s*(?:o|\/)\s*Raz[oó]n Social", "Denominaci[oó]n o Raz[oó]n Social", "Raz[oó]n Social"],
+    ["R[eé]gimen de Capital", "Nombre Comercial", "Fecha inicio de operaciones", "Estatus en el padr[oó]n"],
+  );
   const nombres = between(text, "Nombre\\s*\\(s\\)", ["Primer Apellido"]);
   const paterno = between(text, "Primer Apellido", ["Segundo Apellido"]);
   const materno = between(text, "Segundo Apellido", [
@@ -580,13 +583,20 @@ function csfData(text: string) {
   };
   regimenes.sort((a, b) => toTime(b.date) - toTime(a.date));
   const regimenesFiscales = regimenes.map(({ label }) => label);
+  if (!regimenesFiscales.length) {
+    const directRegime = text.match(/(?:R[eé]gimen(?:es)?(?:\s+Fiscal(?:es)?)?\s*[:\-]?\s*)(R[eé]gimen\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s,().&-]{5,}?)(?=\s+(?:Fecha|\d{2}\/\d{2}\/\d{4}|Obligaciones|$))/i)?.[1];
+    if (directRegime) regimenesFiscales.push(clean(directRegime));
+  }
   const idCif =
     normalized(text).match(/\bID\s*CIF\s*[:=]?\s*(\d{6,20})\b/)?.[1] || "";
   return {
-    nombre: clean([nombres, paterno, materno].filter(Boolean).join(" ")),
-    nombres,
-    apellidoPaterno: paterno,
-    apellidoMaterno: materno,
+    nombre: personaTipo === "MORAL" ? razonSocial : clean([nombres, paterno, materno].filter(Boolean).join(" ")),
+    nombres: personaTipo === "MORAL" ? razonSocial : nombres,
+    apellidoPaterno: personaTipo === "MORAL" ? "" : paterno,
+    apellidoMaterno: personaTipo === "MORAL" ? "" : materno,
+    razonSocial,
+    personaTipo,
+    rfc,
     domicilio,
     calle: clean([streetType, street].filter(Boolean).join(' ')),
     numeroExterior: exterior,
@@ -801,7 +811,7 @@ export async function analyzeNotaryDocument(
   let text = "";
   if (file.type === "application/pdf" || extension === "pdf") {
     progress?.("Leyendo texto del PDF localmente…");
-    text = await pdfText(file, progress);
+    text = await pdfText(file, progress, expectedType);
   } else if (file.type.startsWith("image/"))
     text = await ocrImage(file, progress);
   else if (extension === "docx") {

@@ -47,7 +47,7 @@ export const notaryInboxApi = {
       const response = await fetch('/api/analyze-notary-document', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transientDocument: { name: file.name, mimeType: file.type, expectedType, base64, extractedText: base64 ? '' : local.text.slice(0, 100000) } }),
+        body: JSON.stringify({ transientDocument: { name: file.name, mimeType: file.type, expectedType, base64, extractedText: base64 ? '' : local.text.slice(0, 300000) } }),
         signal: controller.signal,
       });
       const result = await response.json().catch(() => ({ message: 'La función devolvió una respuesta no válida.' }));

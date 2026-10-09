@@ -9,6 +9,10 @@ export type IsabiParty = {
   correo: string;
   porcentajeDominioDirecto: string;
   porcentajeUsufructo: string;
+  regimenFiscal: string;
+  codigoPostalFiscal: string;
+  domicilioFiscal: string;
+  csfArchivo: string;
 };
 
 export type IsabiData = Record<string, string | boolean | IsabiParty[]>;

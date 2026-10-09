@@ -145,12 +145,12 @@ const sections: Section[] = [
 const documentBlocks = [
   { key: 'predial', title: 'Certificado de no adeudo predial', hint: 'Fuente de clave catastral, folio del predio y tipo de asentamiento.', minimum: 1, types: ['Certificado de no adeudo predial'] },
   { key: 'acto', title: 'Escritura', hint: 'Fuente de operación, instrumento, partes, medidas, colindancias y antecedentes. Se cruza con la clave del certificado predial.', minimum: 1, types: ['Escritura'] },
-  { key: 'fiscalAdquiriente', title: 'CSF del adquiriente', hint: 'Fuente exclusiva de los datos fiscales y del nombre fiscal del adquiriente.', minimum: 1, types: ['CSF'] },
+  { key: 'fiscalAdquiriente', title: 'CSF de cada adquiriente', hint: 'Sube una constancia por cada adquiriente. El sistema las relaciona por RFC, CURP o nombre; puedes seleccionar varios archivos.', minimum: 1, types: ['CSF'] },
   { key: 'avaluo', title: 'Avalúo', hint: 'Fuente exclusiva del valor de operación, valor de avalúo y fecha del avalúo.', minimum: 1, types: ['Avalúo'] },
   { key: 'inmueble', title: 'Otros documentos del inmueble', hint: 'Plano, predial o antecedente de propiedad, cuando correspondan.', minimum: 0, types: ['Plano o medidas','Predial','Antecedente de propiedad'] },
   { key: 'otros', title: 'Anexos adicionales', hint: 'Carta de no propiedad, poderes, permisos u otros anexos aplicables.', minimum: 0, types: ['Poder','Carta de no propiedad','Otro'] },
 ];
-const emptyParty = (): IsabiParty => ({ personaTipo: 'FÍSICA', rfc: '', curp: '', nombres: '', apellidoPaterno: '', apellidoMaterno: '', telefono: '', correo: '', porcentajeDominioDirecto: '', porcentajeUsufructo: '' });
+const emptyParty = (): IsabiParty => ({ personaTipo: 'FÍSICA', rfc: '', curp: '', nombres: '', apellidoPaterno: '', apellidoMaterno: '', telefono: '', correo: '', porcentajeDominioDirecto: '', porcentajeUsufructo: '', regimenFiscal: '', codigoPostalFiscal: '', domicilioFiscal: '', csfArchivo: '' });
 const initialData: IsabiData = { tipoPredio: 'URBANO', naturalezaActo: 'I-A. COMPRAVENTA', personaTipo: 'FÍSICA', usoCfdi: 'CP01 - PAGOS', lugarOtorgamiento: 'LA PAZ, B.C.S.', cartaNoPropiedad: false, entreConyugesParientes: false, aplicaArticulo39: false, cesionDerechosHereditarios: false, tramitePorcentaje: false, notificacionEstado: 'BAJA CALIFORNIA SUR', notificacionColonia: 'VICENTE GUERRERO', notificacionCp: '23020', notificacionCalle: '16 DE SEPTIEMBRE', notificacionExterior: '1685', notificacionInterior: '', correoElectronico: '', adquirientesDetalle: [] };
 const inferDocumentType = (block: typeof documentBlocks[number], name: string) => {
   const normalized = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
@@ -230,13 +230,37 @@ const extractPredialCertificateFallback = (text: string) => {
   const type = normalizedText.match(/\b(URBANO|SUBURBANO|R[ÚU]STICO|ESPECIAL)\b/i)?.[1] || '';
   return { claveCatastral, folioPredio: folioPredio.trim(), tipoAsentamiento: type.toUpperCase().replace('RUSTICO', 'RÚSTICO') };
 };
+const extractAvaluoFallback = (text: string) => {
+  const source = text.replace(/\r/g, ' ').replace(/\s+/g, ' ');
+  const money = (labels: string) => {
+    const value = source.match(new RegExp(`(?:${labels})[^$0-9]{0,100}\\$?\\s*([0-9][0-9,.]{2,})`, 'i'))?.[1] || '';
+    if (!value) return '';
+    const normalized = value.replace(/,/g, '');
+    return /^\d+(?:\.\d+)?$/.test(normalized) ? normalized : '';
+  };
+  const dateValue = source.match(/(?:FECHA\s+DEL\s+AVAL[ÚU]O|FECHA\s+DE\s+AVAL[ÚU]O|FECHA\s+DEL\s+INFORME|FECHA\s+DE\s+EMISI[ÓO]N)\s*[:.-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-]\d{4}|\d{4}[\/-]\d{1,2}[\/-]\d{1,2})/i)?.[1] || '';
+  const toIso = (value: string) => {
+    if (!value) return '';
+    const parts = value.split(/[\/-]/);
+    if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+  };
+  return {
+    valorOperacion: money('VALOR\\s+DE\\s+OPERACI[ÓO]N|PRECIO\\s+DE\\s+OPERACI[ÓO]N|MONTO\\s+DE\\s+OPERACI[ÓO]N'),
+    valorAvaluo: money('VALOR\\s+DE\\s+AVAL[ÚU]O|VALOR\\s+COMERCIAL|CONCLUSI[ÓO]N\\s+DE\\s+VALOR|VALOR\\s+RESULTANTE|VALOR\\s+CONCLUIDO'),
+    fechaAvaluo: toIso(dateValue),
+  };
+};
 
 const normalizeExtracted = (raw: Record<string, unknown>): Record<string, string> => {
   const string = (key: string) => typeof raw[key] === 'string' ? String(raw[key]).trim() : '';
   const list = (key: string) => Array.isArray(raw[key]) ? (raw[key] as unknown[]).filter((value): value is string => typeof value === 'string' && Boolean(value.trim())).join('\n') : '';
-  const fullName = [string('nombres'), string('apellidoPaterno'), string('apellidoMaterno')].filter(Boolean).join(' ');
+  const rfc = string('rfc').toUpperCase();
+  const personaTipo = string('personaTipo').toUpperCase() || (rfc.length === 12 ? 'MORAL' : rfc.length === 13 ? 'FÍSICA' : '');
+  const razonSocial = string('razonSocial') || (personaTipo === 'MORAL' ? string('nombre') : '');
+  const fullName = personaTipo === 'MORAL' ? razonSocial : [string('nombres'), string('apellidoPaterno'), string('apellidoMaterno')].filter(Boolean).join(' ');
   return {
-    nombres: string('nombres') || string('nombre'), apellidoPaterno: string('apellidoPaterno'), apellidoMaterno: string('apellidoMaterno'), rfc: string('rfc'), regimenFiscal: string('regimenFiscal'), codigoPostalFiscal: string('codigoPostal'), domicilioFiscal: string('domicilio'),
+    nombres: personaTipo === 'MORAL' ? razonSocial : string('nombres') || string('nombre'), apellidoPaterno: personaTipo === 'MORAL' ? '' : string('apellidoPaterno'), apellidoMaterno: personaTipo === 'MORAL' ? '' : string('apellidoMaterno'), rfc, personaTipo, regimenFiscal: string('regimenFiscal'), codigoPostalFiscal: string('codigoPostal'), domicilioFiscal: string('domicilio'),
     escrituraNumero: string('numeroInstrumento'), volumen: string('volumen'), fechaEscritura: string('fechaInstrumento'), lugarOtorgamiento: string('lugarOtorgamiento'),
     naturalezaActo: classifyNature(string('naturalezaActo'), string('descripcionAdquisicion'), string('actoTraslativo')), descripcionAdquisicion: acquisitionDescription(string('naturalezaActo'), string('descripcionAdquisicion'), string('actoTraslativo')), actoTraslativo: matchCatalog(string('actoTraslativo'), actosTraslativos), fechaOtorgamiento: string('fechaOtorgamiento'), fechaFirma: string('fechaFirma'), estadoEscritura: string('estadoEscritura'), municipioEscritura: string('municipioEscritura'), datosEnajenante: list('enajenantes'), datosAdquiriente: fullName,
     claveCatastral: formatClaveCatastral(string('claveCatastral')), folioPredio: string('folioPredio'), tipoPredio: matchCatalog(string('tipoAsentamiento'), ['URBANO','SUBURBANO','RÚSTICO','ESPECIAL']), folioReal: string('folioReal'), ubicacionLinderos: string('ubicacionLinderos') || string('medidasLinderos'), superficieTerreno: string('superficieTerreno'), superficieConstruccion: string('superficieConstruccion'),
@@ -247,13 +271,33 @@ const normalizeExtracted = (raw: Record<string, unknown>): Record<string, string
 const formKeysByDocument: Record<string, string[]> = {
   Escritura: ['naturalezaActo','descripcionAdquisicion','actoTraslativo','volumen','escrituraNumero','fechaEscritura','estadoEscritura','municipioEscritura','lugarOtorgamiento','fechaOtorgamiento','fechaFirma','datosEnajenante'],
   'Certificado de no adeudo predial': ['claveCatastral','folioPredio','tipoPredio'],
-  CSF: ['nombres','apellidoPaterno','apellidoMaterno','rfc','regimenFiscal','codigoPostalFiscal','domicilioFiscal','datosAdquiriente'],
+  CSF: ['nombres','apellidoPaterno','apellidoMaterno','rfc','personaTipo','regimenFiscal','codigoPostalFiscal','domicilioFiscal','datosAdquiriente'],
   'Avalúo': ['valorOperacion','valorAvaluo','fechaAvaluo'],
   Predial: ['valorFiscal'],
   'Plano o medidas': ['superficieTerreno','superficieConstruccion'],
   'Antecedente de propiedad': ['antecedentesPropiedad','folioReal'],
 };
 const canonicalCadastralKey = (value: unknown) => String(value || '').replace(/\D/g, '');
+const canonicalIdentity = (value: unknown) => normalizeForMatch(String(value || '')).replace(/\s/g, '');
+const partyName = (party: Partial<IsabiParty>) => [party.nombres, party.apellidoPaterno, party.apellidoMaterno].filter(Boolean).join(' ');
+const findMatchingParty = (parties: IsabiParty[], candidate: Partial<IsabiParty>) => {
+  const rfc = canonicalIdentity(candidate.rfc);
+  const curp = canonicalIdentity(candidate.curp);
+  const name = canonicalIdentity(partyName(candidate));
+  return parties.findIndex((party) => {
+    const existingName = canonicalIdentity(partyName(party));
+    return Boolean(
+      (rfc && canonicalIdentity(party.rfc) === rfc) ||
+      (curp && canonicalIdentity(party.curp) === curp) ||
+      (name && existingName === name) ||
+      (name.length >= 8 && existingName.length >= 8 && (existingName.includes(name) || name.includes(existingName))));
+  });
+};
+const mergeParty = (base: IsabiParty, incoming: Partial<IsabiParty>) => {
+  const next = { ...base };
+  for (const [key, value] of Object.entries(incoming) as [keyof IsabiParty, string][]) if (value) next[key] = value.toUpperCase();
+  return next;
+};
 const matchPropertyFromDeed = (items: unknown, cadastralKey: unknown) => {
   if (!Array.isArray(items)) return undefined;
   const target = canonicalCadastralKey(cadastralKey);
@@ -298,18 +342,56 @@ export function IsabiPage() {
           if (!String(extractedData.folioPredio || '').trim() && fallback.folioPredio) extractedData.folioPredio = fallback.folioPredio;
           if (!String(extractedData.tipoAsentamiento || '').trim() && fallback.tipoAsentamiento) extractedData.tipoAsentamiento = fallback.tipoAsentamiento;
         }
+        if (expectedType === 'Avalúo') {
+          const fallback = extractAvaluoFallback(result.text || '');
+          if (fallback.valorOperacion) extractedData.valorOperacion = fallback.valorOperacion;
+          if (fallback.valorAvaluo) extractedData.valorAvaluo = fallback.valorAvaluo;
+          if (fallback.fechaAvaluo) extractedData.fechaAvaluo = fallback.fechaAvaluo;
+        }
         const normalized = normalizeExtracted(extractedData);
         setData((current) => {
           const next = { ...current };
           if (expectedType === 'Carta de no propiedad') next.cartaNoPropiedad = true;
           if (expectedType === 'Escritura' && Array.isArray((result.data as Record<string, unknown>).adquirientes)) {
-            const parties = ((result.data as Record<string, unknown>).adquirientes as Record<string, unknown>[]).map((party) => ({
+            const deedParties = ((result.data as Record<string, unknown>).adquirientes as Record<string, unknown>[]).map((party) => ({
               ...emptyParty(),
               ...Object.fromEntries(Object.entries(party).map(([key, value]) => [key, typeof value === 'string' ? value.toUpperCase() : ''])),
             })) as IsabiParty[];
-            if (parties.length) next.adquirientesDetalle = parties;
+            const currentParties = Array.isArray(next.adquirientesDetalle) ? [...next.adquirientesDetalle] as IsabiParty[] : [];
+            for (const deedParty of deedParties) {
+              const match = findMatchingParty(currentParties, deedParty);
+              if (match >= 0) currentParties[match] = mergeParty(currentParties[match], deedParty);
+              else currentParties.push(deedParty);
+            }
+            if (currentParties.length) next.adquirientesDetalle = currentParties;
+          }
+          if (expectedType === 'CSF') {
+            const raw = extractedData;
+            const csfRfc = String(raw.rfc || '').toUpperCase();
+            const csfPersonaTipo = String(raw.personaTipo || '').toUpperCase() || (csfRfc.length === 12 ? 'MORAL' : 'FÍSICA');
+            const csfBusinessName = String(raw.razonSocial || (csfPersonaTipo === 'MORAL' ? raw.nombre || raw.nombres || '' : ''));
+            const csfParty: Partial<IsabiParty> = {
+              personaTipo: csfPersonaTipo,
+              rfc: csfRfc, curp: String(raw.curp || ''), nombres: csfPersonaTipo === 'MORAL' ? csfBusinessName : String(raw.nombres || raw.nombre || ''),
+              apellidoPaterno: csfPersonaTipo === 'MORAL' ? '' : String(raw.apellidoPaterno || ''), apellidoMaterno: csfPersonaTipo === 'MORAL' ? '' : String(raw.apellidoMaterno || ''),
+              regimenFiscal: String(raw.regimenFiscal || ''), codigoPostalFiscal: String(raw.codigoPostal || ''),
+              domicilioFiscal: String(raw.domicilio || ''), csfArchivo: file.name,
+            };
+            next.personaTipo = csfPersonaTipo;
+            if (csfPersonaTipo === 'MORAL') {
+              next.apellidoPaterno = '';
+              next.apellidoMaterno = '';
+            }
+            const currentParties = Array.isArray(next.adquirientesDetalle) ? [...next.adquirientesDetalle] as IsabiParty[] : [];
+            const match = findMatchingParty(currentParties, csfParty);
+            if (match >= 0) currentParties[match] = mergeParty(currentParties[match], csfParty);
+            else currentParties.push(mergeParty(emptyParty(), csfParty));
+            next.adquirientesDetalle = currentParties;
           }
           if (expectedType === 'Escritura') {
+            const cartaEstado = String(extractedData.cartaNoPropiedadEntregada || '').toUpperCase();
+            if (cartaEstado === 'SI' || cartaEstado === 'SÍ') next.cartaNoPropiedad = true;
+            if (cartaEstado === 'NO') next.cartaNoPropiedad = false;
             const property = matchPropertyFromDeed(extractedData.inmueblesEscritura, next.claveCatastral);
             if (property) {
               if (typeof property.ubicacionLinderos === 'string') next.ubicacionLinderos = property.ubicacionLinderos.toUpperCase();
@@ -330,17 +412,9 @@ export function IsabiPage() {
               if (typeof property.antecedentesPropiedad === 'string') next.antecedentesPropiedad = property.antecedentesPropiedad.toUpperCase();
             }
           }
-          const identityLines = [
-            normalized.datosAdquiriente && `NOMBRE: ${normalized.datosAdquiriente}`,
-            normalized.rfc && `RFC: ${normalized.rfc}`,
-            normalized.domicilioFiscal && `DOMICILIO: ${normalized.domicilioFiscal}`,
-          ].filter(Boolean) as string[];
-          let summary = String(next.datosAdquiriente || '');
-          for (const line of identityLines) if (!summary.toUpperCase().includes(line.toUpperCase())) summary = [summary, line].filter(Boolean).join('\n');
-          next.datosAdquiriente = summary.toUpperCase();
           return next;
         });
-        const allowedKeys = new Set(['nombre','nombres','apellidoPaterno','apellidoMaterno','rfc','domicilio','calle','numeroExterior','numeroInterior','colonia','ciudad','estado','codigoPostal','regimenFiscal','regimenesFiscales','numeroInstrumento','fechaInstrumento','lugarOtorgamiento','volumen','naturalezaActo','descripcionAdquisicion','actoTraslativo','fechaOtorgamiento','fechaFirma','estadoEscritura','municipioEscritura','enajenantes','adquirientes','inmueblesEscritura','claveCatastral','folioPredio','tipoAsentamiento','folioReal','ubicacionLinderos','medidasLinderos','superficieTerreno','superficieConstruccion','valorFiscal','valorOperacion','valorAvaluo','fechaAvaluo','antecedentesPropiedad','clasificacionInmueble','correoElectronico']);
+        const allowedKeys = new Set(['nombre','nombres','apellidoPaterno','apellidoMaterno','razonSocial','personaTipo','rfc','domicilio','calle','numeroExterior','numeroInterior','colonia','ciudad','estado','codigoPostal','regimenFiscal','regimenesFiscales','numeroInstrumento','fechaInstrumento','lugarOtorgamiento','volumen','naturalezaActo','descripcionAdquisicion','actoTraslativo','cartaNoPropiedadEntregada','fechaOtorgamiento','fechaFirma','estadoEscritura','municipioEscritura','enajenantes','adquirientes','inmueblesEscritura','claveCatastral','folioPredio','tipoAsentamiento','folioReal','ubicacionLinderos','medidasLinderos','superficieTerreno','superficieConstruccion','valorFiscal','valorOperacion','valorAvaluo','fechaAvaluo','antecedentesPropiedad','clasificacionInmueble','correoElectronico']);
         const relevantData = Object.fromEntries(Object.entries(extractedData).filter(([key]) => allowedKeys.has(key)));
         setDocuments((current) => [...current, { block: block.key, expectedType: result.type || expectedType || 'Otro', file, extractedData: relevantData, confidence: result.confidence, warnings: result.warnings || [] }]);
       }
@@ -352,6 +426,8 @@ export function IsabiPage() {
     event.preventDefault();
     const missing = documentBlocks.filter((block) => block.minimum > (counts[block.key] || 0));
     if (missing.length) return notify('warning', 'Faltan documentos', `Completa los bloques: ${missing.map((block) => block.title).join(', ')}.`);
+    const partiesWithoutCsf = parties.filter((party) => !party.csfArchivo);
+    if (parties.length && partiesWithoutCsf.length) return notify('warning', 'Faltan constancias fiscales', `Carga y relaciona la CSF de ${partiesWithoutCsf.length} adquiriente${partiesWithoutCsf.length === 1 ? '' : 's'}.`);
     setSaving(true);
     try { const saved = await isabiApi.save({ status: 'BORRADOR', data }, documents); notify('success', 'Expediente ISABI guardado', `Se creó ${saved.folioInterno}.`); setData(initialData); setDocuments([]); setRecords(await isabiApi.list()); }
     catch (error) { notify('error', 'No se pudo guardar', error instanceof Error ? error.message : 'Intenta nuevamente.'); }
@@ -365,7 +441,7 @@ export function IsabiPage() {
   return <form onSubmit={submit} className="space-y-6">
     <div><p className="text-sm font-bold uppercase tracking-wider text-blue-600">Notaría · Registro Público</p><h1 className="mt-1 text-3xl font-black">Expediente ISABI</h1><p className="mt-2 max-w-3xl text-sm text-slate-500">Carga los documentos de la operación, revisa los datos extraídos y conserva un expediente listo para trasladarlo al portal del impuesto.</p></div>
     <section className="rounded-2xl border bg-white p-6 shadow-sm"><div className="mb-5 flex items-center gap-3"><UploadCloud className="h-6 w-6 text-blue-600"/><div><h2 className="text-xl font-bold">Documentos fuente</h2><p className="text-sm text-slate-500">El sistema admite PDF, Word (.docx), JPG, PNG y WEBP. No sustituye la revisión jurídica.</p></div></div><div className="grid gap-4 lg:grid-cols-2">{documentBlocks.map((block) => <label key={block.key} className="cursor-pointer rounded-xl border border-dashed border-slate-300 p-4 transition hover:border-blue-400 hover:bg-blue-50/30"><div className="flex justify-between gap-3"><div><p className="font-bold">{block.title}</p><p className="mt-1 text-xs leading-relaxed text-slate-500">{block.hint}</p><p className="mt-2 text-xs font-semibold text-blue-600">{block.minimum ? `Mínimo sugerido: ${block.minimum}` : 'Opcional'} · Cargados: {counts[block.key] || 0}</p></div>{processing === block.key ? <Loader2 className="h-5 w-5 animate-spin text-blue-600"/> : (counts[block.key] || 0) >= block.minimum && block.minimum > 0 ? <CheckCircle2 className="h-5 w-5 text-emerald-600"/> : <Plus className="h-5 w-5 text-slate-400"/>}</div><input className="hidden" type="file" multiple accept=".pdf,.docx,.jpg,.jpeg,.png,.webp" disabled={!!processing} onChange={(event) => { void analyzeFiles(block, event.target.files); event.target.value = ''; }}/></label>)}</div>{progress && <p className="mt-4 rounded-lg bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700">{progress}</p>} {documents.length > 0 && <div className="mt-5 flex flex-wrap gap-2">{documents.map((document, index) => <span key={`${document.file.name}-${index}`} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">{document.file.name} · {document.confidence}%</span>)}</div>}</section>
-    <section className="rounded-2xl border bg-white p-6 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-bold">Adquirientes de la escritura</h2><p className="mt-1 text-sm text-slate-500">Se extraen de la escritura. Revisa RFC, CURP, porcentajes y datos de cada adquiriente antes de guardar.</p></div><button type="button" className="inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-sm font-bold text-blue-700 hover:bg-blue-50" onClick={() => setData((current) => ({ ...current, adquirientesDetalle: [...(Array.isArray(current.adquirientesDetalle) ? current.adquirientesDetalle : []), emptyParty()] as IsabiParty[] }))}><Plus className="h-4 w-4"/>Agregar adquiriente</button></div><div className="mt-5 space-y-4">{parties.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">Carga la escritura para extraer los adquirientes o agrégalos manualmente.</p> : parties.map((party, index) => <div key={index} className="rounded-xl border p-4"><div className="mb-4 flex items-center justify-between"><p className="font-bold">Adquiriente {index + 1}</p><button type="button" className="text-sm font-semibold text-red-600" onClick={() => removeParty(index)}>Eliminar</button></div><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"><label className="text-sm font-medium">Tipo de persona<select className="mt-1.5 h-10 w-full rounded-md border bg-white px-3" value={party.personaTipo} onChange={(event) => updateParty(index, 'personaTipo', event.target.value)}><option>FÍSICA</option><option>MORAL</option></select></label>{([['rfc','RFC'],['curp','CURP'],['nombres','Nombre(s)'],['apellidoPaterno','Apellido 1'],['apellidoMaterno','Apellido 2'],['telefono','Teléfono'],['correo','Correo'],['porcentajeDominioDirecto','% dominio directo'],['porcentajeUsufructo','% usufructo']] as [keyof IsabiParty,string][]).map(([key, label]) => <Input key={key} label={label} type={key.startsWith('porcentaje') ? 'number' : 'text'} step={key.startsWith('porcentaje') ? '0.01' : undefined} value={party[key]} onChange={(event) => updateParty(index, key, event.target.value)}/>)}</div></div>)}</div></section>
+    <section className="rounded-2xl border bg-white p-6 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-bold">Adquirientes de la escritura</h2><p className="mt-1 text-sm text-slate-500">La escritura aporta las personas y porcentajes; cada CSF completa sus datos fiscales.</p></div><button type="button" className="inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-sm font-bold text-blue-700 hover:bg-blue-50" onClick={() => setData((current) => ({ ...current, adquirientesDetalle: [...(Array.isArray(current.adquirientesDetalle) ? current.adquirientesDetalle : []), emptyParty()] as IsabiParty[] }))}><Plus className="h-4 w-4"/>Agregar adquiriente</button></div><div className="mt-5 space-y-4">{parties.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">Carga la escritura para extraer los adquirientes y después una CSF por cada persona.</p> : parties.map((party, index) => <div key={index} className="rounded-xl border p-4"><div className="mb-4 flex flex-wrap items-center justify-between gap-2"><div><p className="font-bold">Adquiriente {index + 1}</p><p className={`mt-1 text-xs font-semibold ${party.csfArchivo ? 'text-emerald-600' : 'text-amber-600'}`}>{party.csfArchivo ? `CSF relacionada: ${party.csfArchivo}` : 'Falta cargar o relacionar su CSF'}</p></div><button type="button" className="text-sm font-semibold text-red-600" onClick={() => removeParty(index)}>Eliminar</button></div><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"><label className="text-sm font-medium">Tipo de persona<select className="mt-1.5 h-10 w-full rounded-md border bg-white px-3" value={party.personaTipo} onChange={(event) => updateParty(index, 'personaTipo', event.target.value)}><option>FÍSICA</option><option>MORAL</option></select></label>{([['rfc','RFC'],['curp','CURP'],['nombres','Nombre(s)'],['apellidoPaterno','Apellido 1'],['apellidoMaterno','Apellido 2'],['telefono','Teléfono'],['correo','Correo'],['porcentajeDominioDirecto','% dominio directo (escritura)'],['porcentajeUsufructo','% usufructo (escritura)'],['regimenFiscal','Régimen fiscal (CSF)'],['codigoPostalFiscal','Código postal fiscal (CSF)'],['domicilioFiscal','Domicilio fiscal (CSF)']] as [keyof IsabiParty,string][]).map(([key, label]) => <Input key={key} label={label} type={key.startsWith('porcentaje') ? 'number' : 'text'} step={key.startsWith('porcentaje') ? '0.01' : undefined} value={party[key]} onChange={(event) => updateParty(index, key, event.target.value)}/>)}</div></div>)}</div></section>
     {sections.map((section) => <section key={section.title} className="rounded-2xl border bg-white p-6 shadow-sm"><h2 className="text-xl font-bold">{section.title}</h2><p className="mt-1 text-sm text-slate-500">{section.subtitle}</p><div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{section.fields.map((field) => (!field.dependsOn || data[field.dependsOn]) && <div key={field.key} className={field.wide ? 'md:col-span-2 xl:col-span-3' : ''}>{field.type === 'checkbox' ? <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700"><input type="checkbox" className="h-4 w-4 accent-blue-600" checked={Boolean(data[field.key])} onChange={(event) => setValue(field.key, event.target.checked)}/><span>{field.label}</span></label> : field.type === 'textarea' ? <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">{field.label}<textarea rows={3} readOnly={field.readOnly} className="rounded-md border px-3 py-2 text-sm uppercase outline-none read-only:bg-slate-100 focus:ring-2 focus:ring-blue-500" value={String(data[field.key] || '')} onChange={(event) => setValue(field.key, event.target.value)}/></label> : field.type === 'select' ? <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">{field.label}<select className="min-h-10 rounded-md border bg-white px-3 py-2 text-sm" value={String(data[field.key] || '')} onChange={(event) => setValue(field.key, event.target.value)}><option value="">SELECCIONAR</option>{field.options?.map((option) => <option key={option}>{option}</option>)}</select></label> : <Input label={field.label} readOnly={field.readOnly} type={field.type || 'text'} step={field.type === 'number' ? '0.01' : undefined} value={String(data[field.key] || '')} onChange={(event) => setValue(field.key, event.target.value)}/>}</div>)}</div>{section.title.startsWith('1.') && <p className="mt-4 text-xs text-slate-500">Las exenciones, parentesco, cesiones y porcentajes requieren confirmación manual. El sistema no los activa únicamente por una inferencia automática.</p>}</section>)}
     <div className="sticky bottom-4 flex flex-wrap justify-end gap-3 rounded-2xl border bg-white/95 p-4 shadow-xl backdrop-blur"><Button type="button" variant="outline" onClick={() => void copyForPortal()} leftIcon={<ClipboardCopy className="h-4 w-4"/>}>Copiar para portal</Button><Button type="submit" isLoading={saving} leftIcon={<Save className="h-4 w-4"/>}>Guardar expediente ISABI</Button></div>
     {records.length > 0 && <section className="rounded-2xl border bg-white p-6 shadow-sm"><div className="flex items-center gap-2"><FileSearch className="h-5 w-5 text-slate-500"/><h2 className="font-bold">Expedientes recientes</h2></div><div className="mt-4 divide-y">{records.slice(0, 5).map((record) => <div key={record.id} className="flex justify-between py-3 text-sm"><span className="font-bold">{record.folioInterno}</span><span className="text-slate-500">{String(record.data.claveCatastral || 'SIN CLAVE CATASTRAL')}</span></div>)}</div></section>}

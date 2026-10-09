@@ -59,6 +59,8 @@ const responseSchema = {
         apellidoMaterno: { type: "STRING" },
         curp: { type: "STRING" },
         rfc: { type: "STRING" },
+        personaTipo: { type: "STRING" },
+        razonSocial: { type: "STRING" },
         domicilio: { type: "STRING" },
         calle: { type: "STRING" },
         numeroExterior: { type: "STRING" },
@@ -110,6 +112,7 @@ const responseSchema = {
         naturalezaActo: { type: "STRING" },
         descripcionAdquisicion: { type: "STRING" },
         actoTraslativo: { type: "STRING" },
+        cartaNoPropiedadEntregada: { type: "STRING", enum: ["SI", "NO", "NO INDICADO"] },
         fechaOtorgamiento: { type: "STRING" },
         fechaFirma: { type: "STRING" },
         estadoEscritura: { type: "STRING" },
@@ -183,7 +186,7 @@ const responseSchema = {
 const fieldsByType: Record<string, string> = {
   INE: "nombres, apellidoPaterno, apellidoMaterno, curp, fechaNacimiento, sexo, domicilio y también sus partes en calle, numeroExterior, numeroInterior, colonia, codigoPostal, ciudad y estado; claveElector, seccion, anioRegistro, vigencia, la línea IDMEX completa en idmex, cic y ocr",
   CURP: "nombre, curp, fechaNacimiento, sexo, lugarNacimiento y nacionalidad",
-  CSF: "nombres, apellidoPaterno, apellidoMaterno, curp, rfc, idCif, codigoPostal, domicilio y también sus partes en calle, numeroExterior, numeroInterior, colonia, ciudad y estado; todas las actividades económicas en actividadesEconomicas, todos los regímenes con su fecha de inicio en regimenesFiscales y el régimen con fecha de inicio más reciente en regimenFiscal",
+  CSF: "rfc, personaTipo como FÍSICA o MORAL, idCif, codigoPostal, domicilio y también sus partes en calle, numeroExterior, numeroInterior, colonia, ciudad y estado; todos los regímenes con su fecha de inicio en regimenesFiscales y el régimen con fecha de inicio más reciente en regimenFiscal. Si el RFC tiene 12 caracteres es persona MORAL: extrae íntegra la Denominación o Razón Social en razonSocial y nombre, colócala también completa en nombres y deja apellidoPaterno y apellidoMaterno vacíos. Si el RFC tiene 13 caracteres es persona FÍSICA: extrae nombres, apellidoPaterno, apellidoMaterno y curp. Nunca uses nombres de vialidad, actividades económicas, encabezados ni fragmentos como DE VIALIDAD como nombre",
   "Acta de nacimiento":
     "nombre, curp, fechaNacimiento, lugarNacimiento, sexo, fechaRegistro, oficialia, libro, numeroActa, municipioRegistro, entidadRegistro, nombrePadre y nombreMadre",
   "Acta de matrimonio":
@@ -197,9 +200,9 @@ const fieldsByType: Record<string, string> = {
   Poder:
     "nombre del poderdante, numeroDocumento para el apoderado, numeroInstrumento, fechaInstrumento, notario y numeroNotaria",
   Escritura:
-    "numeroInstrumento, volumen, fechaInstrumento, fechaOtorgamiento, fechaFirma, lugarOtorgamiento, estadoEscritura, municipioEscritura, notario, numeroNotaria, cada nombre completo de la parte enajenante en enajenantes; y para cada adquiriente devuelve personaTipo, rfc, curp, nombres, apellidoPaterno, apellidoMaterno, telefono, correo, porcentajeDominioDirecto y porcentajeUsufructo en adquirientes. Extrae naturalezaActo y actoTraslativo usando el acto jurídico explícito. En descripcionAdquisicion devuelve el nombre breve del contrato: por ejemplo CONTRATO DE DACIÓN EN PAGO, CONTRATO DE COMPRAVENTA, CONTRATO DE DONACIÓN o CONTRATO DE FIDEICOMISO; no devuelvas montos ni una narración larga. Para cada inmueble objeto del contrato crea un elemento de inmueblesEscritura con su claveCatastral tal como aparezca, ubicacionLinderos con ubicación, superficie, medidas, rumbos y todas las colindancias, y antecedentesPropiedad copiando específicamente el antecedente de adquisición con número de escritura, volumen, fecha, notario, datos de inscripción registral, sección y fecha de inscripción. No mezcles datos entre inmuebles. Examina encabezado, comparecencia, antecedentes, declaraciones, cláusulas y certificaciones. No uses las claves de la escritura para llenar la clave principal del trámite: sirven únicamente para relacionar el inmueble con la clave proveniente del certificado predial. No obtengas datos fiscales de facturación desde la escritura y no decidas exenciones, parentesco, aplicación del artículo 39, cesión hereditaria ni trámite porcentual: esas condiciones requieren confirmación humana",
+    "Lee la escritura completa y devuelve todos estos datos: naturalezaActo; descripcionAdquisicion como nombre breve del contrato; cartaNoPropiedadEntregada con SI solamente si la escritura afirma que fue entregada, NO solamente si afirma que no fue entregada y NO INDICADO si no lo menciona; actoTraslativo; numeroInstrumento; volumen; fechaInstrumento; estadoEscritura; municipioEscritura; lugarOtorgamiento; fechaOtorgamiento; fechaFirma; notario y numeroNotaria. Devuelve cada nombre completo de la parte enajenante en enajenantes. Para cada adquiriente devuelve personaTipo, rfc, curp, nombres, apellidoPaterno, apellidoMaterno, telefono, correo, porcentajeDominioDirecto y porcentajeUsufructo en adquirientes; los porcentajes deben proceder exclusivamente de la escritura. Para cada inmueble objeto del contrato crea un elemento separado de inmueblesEscritura con su claveCatastral tal como aparezca, ubicacionLinderos transcribiendo ubicación, superficie, medidas, rumbos y todas las colindancias sin resumir, y antecedentesPropiedad transcribiendo específicamente el antecedente de adquisición con número de escritura, volumen, fecha, notario, notaría, datos de inscripción registral, registro, volumen registral, número, sección y fecha de inscripción. No mezcles datos entre inmuebles. Examina portada, encabezado, comparecencia, antecedentes, declaraciones, cláusulas, anexos y certificaciones. No uses las claves de la escritura para llenar la clave principal del trámite: sirven únicamente para relacionar el inmueble con la clave proveniente del certificado predial. No obtengas datos fiscales de facturación desde la escritura y no decidas exenciones, parentesco, aplicación del artículo 39, cesión hereditaria ni trámite porcentual: esas condiciones requieren confirmación humana",
   "Avalúo":
-    "valorOperacion, valorAvaluo y fechaAvaluo. Extrae exclusivamente esos tres datos del avalúo; no uses valores fiscales, catastrales, superficies ni otros importes para completar estos campos. Distingue expresamente el valor de operación del valor de avalúo y devuelve la fecha como YYYY-MM-DD",
+    "valorOperacion, valorAvaluo y fechaAvaluo. Busca en todas las páginas, especialmente portada, resumen, certificación y conclusión final. Para valorOperacion acepta únicamente etiquetas explícitas como VALOR DE OPERACIÓN, PRECIO DE OPERACIÓN o MONTO DE OPERACIÓN. Para valorAvaluo busca VALOR DE AVALÚO, VALOR COMERCIAL, CONCLUSIÓN DE VALOR, VALOR RESULTANTE o VALOR CONCLUIDO. Para fechaAvaluo usa FECHA DEL AVALÚO, FECHA DE AVALÚO, FECHA DEL INFORME o FECHA DE EMISIÓN del avalúo; no uses fecha de obligación, vigencia, visita, escritura ni impresión. Devuelve importes como números decimales sin signo de moneda ni separadores de miles y la fecha como YYYY-MM-DD. No uses valores fiscales, catastrales, superficies ni otros importes para completar estos campos",
   "Predial":
     "claveCatastral, folioReal, domicilio del inmueble, superficieTerreno, superficieConstruccion, valorFiscal y nombre del propietario",
   "Certificado de no adeudo predial":
@@ -442,7 +445,7 @@ export default async function handler(
     if (document.texto_extraido && document.texto_extraido.length >= 30) {
       parts = [
         {
-          text: `${instructions}\n\nTexto reconocido:\n${document.texto_extraido.slice(0, 100000)}`,
+          text: `${instructions}\n\nTexto reconocido:\n${document.texto_extraido.slice(0, 300000)}`,
         },
       ];
     } else {
@@ -516,6 +519,7 @@ export default async function handler(
         "naturalezaActo",
         "descripcionAdquisicion",
         "actoTraslativo",
+        "cartaNoPropiedadEntregada",
         "inmueblesEscritura",
       ];
     if (document.tipo_indicado === "Certificado de no adeudo predial")
@@ -523,6 +527,27 @@ export default async function handler(
         "claveCatastral",
         "folioPredio",
         "tipoAsentamiento",
+      ];
+    if (document.tipo_indicado === "CSF")
+      schema.properties.datos.required = [
+        "rfc",
+        "personaTipo",
+        "razonSocial",
+        "nombre",
+        "nombres",
+        "apellidoPaterno",
+        "apellidoMaterno",
+        "curp",
+        "codigoPostal",
+        "domicilio",
+        "regimenesFiscales",
+        "regimenFiscal",
+      ];
+    if (document.tipo_indicado === "Avalúo")
+      schema.properties.datos.required = [
+        "valorOperacion",
+        "valorAvaluo",
+        "fechaAvaluo",
       ];
     const vertexController = new AbortController();
     const vertexTimeout = setTimeout(() => vertexController.abort(), 210_000);
