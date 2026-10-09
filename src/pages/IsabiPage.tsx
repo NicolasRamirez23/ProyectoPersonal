@@ -109,7 +109,7 @@ const usosCfdi = [
 ];
 const sections: Section[] = [
   { title: '1. Identificación del trámite', subtitle: 'Datos catastrales y naturaleza de la adquisición.', fields: [
-    { key: 'claveCatastral', label: 'Clave catastral' }, { key: 'folioPredio', label: 'Folio del predio' }, { key: 'tipoAsentamiento', label: 'Tipo de asentamiento' }, { key: 'folio', label: 'Folio del portal' }, { key: 'tipoPredio', label: 'Tipo', type: 'select', options: ['URBANO','SUBURBANO','RÚSTICO','ESPECIAL'] },
+    { key: 'claveCatastral', label: 'Clave catastral' }, { key: 'folioPredio', label: 'Folio del predio' }, { key: 'tipoPredio', label: 'Tipo', type: 'select', options: ['URBANO','SUBURBANO','RÚSTICO','ESPECIAL'] },
     { key: 'naturalezaActo', label: 'Naturaleza del acto o concepto de la adquisición', type: 'select', options: naturalezaActoOptions, wide: true }, { key: 'descripcionAdquisicion', label: 'Descripción', type: 'textarea', wide: true },
     { key: 'cartaNoPropiedad', label: 'Carta de no propiedad entregada', type: 'checkbox' },
     { key: 'entreConyugesParientes', label: 'Entre cónyuges o parientes en línea recta', type: 'checkbox' },
@@ -180,6 +180,40 @@ const matchCatalog = (value: string, options: string[]) => {
     return normalizedOption.length >= 6 && (target.includes(normalizedOption) || normalizedOption.includes(target));
   }) || value;
 };
+const classifyNature = (rawNature: string, rawDescription: string, rawAct: string) => {
+  const value = normalizeForMatch(`${rawNature} ${rawDescription} ${rawAct}`);
+  if (value.includes('DACION EN PAGO')) return naturalezaActoOptions.find((option) => option.startsWith('V.')) || '';
+  if (value.includes('COMPRAVENTA') || value.includes('COMPRA VENTA')) {
+    if (value.includes('RESERVA DE DOMINIO')) return naturalezaActoOptions.find((option) => option.startsWith('II.')) || '';
+    return naturalezaActoOptions.find((option) => option.startsWith('I-A.')) || '';
+  }
+  if (value.includes('ADJUDICACION JUDICIAL') || value.includes('SUBASTA')) return naturalezaActoOptions.find((option) => option.startsWith('I-C.')) || '';
+  if (value.includes('DONACION')) return naturalezaActoOptions.find((option) => option.startsWith('I-D.')) || '';
+  if (value.includes('SUCESION TESTAMENTARIA') || value.includes('SUCESION INTESTAMENTARIA')) return naturalezaActoOptions.find((option) => option.startsWith('I-E.')) || '';
+  if (value.includes('APORTACION')) return naturalezaActoOptions.find((option) => option.startsWith('I-F.')) || '';
+  if (value.includes('FUSION DE SOCIEDADES')) return naturalezaActoOptions.find((option) => option.startsWith('IV.')) || '';
+  if (value.includes('PRESCRIPCION POSITIVA')) return naturalezaActoOptions.find((option) => option.startsWith('IX.')) || '';
+  if (value.includes('PERMUTA')) return naturalezaActoOptions.find((option) => option.startsWith('XIII.')) || '';
+  if (value.includes('FIDEICOMISO')) return naturalezaActoOptions.find((option) => option.startsWith('I-B.')) || '';
+  return matchCatalog(rawNature, naturalezaActoOptions);
+};
+const acquisitionDescription = (rawNature: string, rawDescription: string, rawAct: string) => {
+  const value = normalizeForMatch(`${rawNature} ${rawDescription} ${rawAct}`);
+  const descriptions: [string, string][] = [
+    ['DACION EN PAGO', 'CONTRATO DE DACIÓN EN PAGO'],
+    ['COMPRAVENTA', 'CONTRATO DE COMPRAVENTA'],
+    ['COMPRA VENTA', 'CONTRATO DE COMPRAVENTA'],
+    ['DONACION', 'CONTRATO DE DONACIÓN'],
+    ['PERMUTA', 'CONTRATO DE PERMUTA'],
+    ['FIDEICOMISO', 'CONTRATO DE FIDEICOMISO'],
+    ['APORTACION', 'CONTRATO DE APORTACIÓN'],
+    ['CESION', 'CONTRATO DE CESIÓN DE DERECHOS'],
+    ['ADJUDICACION', 'ADJUDICACIÓN'],
+    ['SUCESION', 'ADJUDICACIÓN POR SUCESIÓN'],
+    ['PRESCRIPCION', 'PRESCRIPCIÓN POSITIVA'],
+  ];
+  return descriptions.find(([keyword]) => value.includes(keyword))?.[1] || rawDescription;
+};
 const formatClaveCatastral = (value: string) => {
   if (value.includes('-')) return value;
   const digits = value.replace(/\D/g, '');
@@ -195,11 +229,21 @@ const normalizeExtracted = (raw: Record<string, unknown>): Record<string, string
   return {
     nombres: string('nombres') || string('nombre'), apellidoPaterno: string('apellidoPaterno'), apellidoMaterno: string('apellidoMaterno'), rfc: string('rfc'), regimenFiscal: string('regimenFiscal'), codigoPostalFiscal: string('codigoPostal'), domicilioFiscal: string('domicilio'),
     escrituraNumero: string('numeroInstrumento'), volumen: string('volumen'), fechaEscritura: string('fechaInstrumento'), lugarOtorgamiento: string('lugarOtorgamiento'),
-    naturalezaActo: matchCatalog(string('naturalezaActo'), naturalezaActoOptions), descripcionAdquisicion: string('descripcionAdquisicion'), actoTraslativo: matchCatalog(string('actoTraslativo'), actosTraslativos), fechaOtorgamiento: string('fechaOtorgamiento'), fechaFirma: string('fechaFirma'), estadoEscritura: string('estadoEscritura'), municipioEscritura: string('municipioEscritura'), datosEnajenante: list('enajenantes'), datosAdquiriente: fullName,
-    claveCatastral: formatClaveCatastral(string('claveCatastral')), folioPredio: string('folioPredio'), tipoAsentamiento: string('tipoAsentamiento'), folioReal: string('folioReal'), ubicacionLinderos: string('ubicacionLinderos') || string('medidasLinderos'), superficieTerreno: string('superficieTerreno'), superficieConstruccion: string('superficieConstruccion'),
+    naturalezaActo: classifyNature(string('naturalezaActo'), string('descripcionAdquisicion'), string('actoTraslativo')), descripcionAdquisicion: acquisitionDescription(string('naturalezaActo'), string('descripcionAdquisicion'), string('actoTraslativo')), actoTraslativo: matchCatalog(string('actoTraslativo'), actosTraslativos), fechaOtorgamiento: string('fechaOtorgamiento'), fechaFirma: string('fechaFirma'), estadoEscritura: string('estadoEscritura'), municipioEscritura: string('municipioEscritura'), datosEnajenante: list('enajenantes'), datosAdquiriente: fullName,
+    claveCatastral: formatClaveCatastral(string('claveCatastral')), folioPredio: string('folioPredio'), tipoPredio: matchCatalog(string('tipoAsentamiento'), ['URBANO','SUBURBANO','RÚSTICO','ESPECIAL']), folioReal: string('folioReal'), ubicacionLinderos: string('ubicacionLinderos') || string('medidasLinderos'), superficieTerreno: string('superficieTerreno'), superficieConstruccion: string('superficieConstruccion'),
     valorFiscal: string('valorFiscal'), valorOperacion: string('valorOperacion'), valorAvaluo: string('valorAvaluo'), fechaAvaluo: string('fechaAvaluo'), antecedentesPropiedad: string('antecedentesPropiedad'), clasificacionInmueble: string('clasificacionInmueble'),
     notificacionCalle: string('calle'), notificacionExterior: string('numeroExterior'), notificacionInterior: string('numeroInterior'), notificacionColonia: string('colonia'), notificacionEstado: string('estado'), notificacionCp: string('codigoPostal'), correoElectronico: string('correoElectronico'),
   };
+};
+const formKeysByDocument: Record<string, string[]> = {
+  Escritura: ['naturalezaActo','descripcionAdquisicion','actoTraslativo','volumen','escrituraNumero','fechaEscritura','estadoEscritura','municipioEscritura','lugarOtorgamiento','fechaOtorgamiento','fechaFirma','datosEnajenante'],
+  'Certificado de no adeudo predial': ['claveCatastral','folioPredio','tipoPredio'],
+  CSF: ['nombres','apellidoPaterno','apellidoMaterno','rfc','regimenFiscal','codigoPostalFiscal','domicilioFiscal','datosAdquiriente'],
+  'Certificado de libertad de gravamen': ['ubicacionLinderos'],
+  'Avalúo': ['valorOperacion','valorAvaluo','fechaAvaluo'],
+  Predial: ['valorFiscal'],
+  'Plano o medidas': ['superficieTerreno','superficieConstruccion'],
+  'Antecedente de propiedad': ['antecedentesPropiedad','folioReal'],
 };
 
 export function IsabiPage() {
@@ -239,7 +283,12 @@ export function IsabiPage() {
             })) as IsabiParty[];
             if (parties.length) next.adquirientesDetalle = parties;
           }
-          for (const [key, value] of Object.entries(normalized)) if (value && !String(next[key] || '').trim()) next[key] = value.toUpperCase();
+          const sourceKeys = new Set(formKeysByDocument[expectedType] || []);
+          for (const [key, value] of Object.entries(normalized)) {
+            if (!value || !sourceKeys.has(key)) continue;
+            const mustReplace = expectedType === 'Escritura' || expectedType === 'Certificado de no adeudo predial' || expectedType === 'CSF' || expectedType === 'Certificado de libertad de gravamen' || expectedType === 'Avalúo';
+            if (mustReplace || !String(next[key] || '').trim()) next[key] = value.toUpperCase();
+          }
           const identityLines = [
             normalized.datosAdquiriente && `NOMBRE: ${normalized.datosAdquiriente}`,
             normalized.rfc && `RFC: ${normalized.rfc}`,

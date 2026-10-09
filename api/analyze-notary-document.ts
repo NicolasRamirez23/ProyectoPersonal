@@ -185,13 +185,13 @@ const fieldsByType: Record<string, string> = {
   Poder:
     "nombre del poderdante, numeroDocumento para el apoderado, numeroInstrumento, fechaInstrumento, notario y numeroNotaria",
   Escritura:
-    "numeroInstrumento, volumen, fechaInstrumento, fechaOtorgamiento, fechaFirma, lugarOtorgamiento, estadoEscritura, municipioEscritura, notario, numeroNotaria, cada nombre completo de la parte enajenante en enajenantes; y para cada adquiriente devuelve personaTipo, rfc, curp, nombres, apellidoPaterno, apellidoMaterno, telefono, correo, porcentajeDominioDirecto y porcentajeUsufructo en adquirientes. Extrae naturalezaActo usando el texto jurídico explícito, descripcionAdquisicion y actoTraslativo. Examina encabezado, comparecencia, declaraciones, cláusulas y certificaciones. No obtengas datos fiscales de facturación desde la escritura y no decidas exenciones, parentesco, aplicación del artículo 39, cesión hereditaria ni trámite porcentual: esas condiciones requieren confirmación humana",
+    "numeroInstrumento, volumen, fechaInstrumento, fechaOtorgamiento, fechaFirma, lugarOtorgamiento, estadoEscritura, municipioEscritura, notario, numeroNotaria, cada nombre completo de la parte enajenante en enajenantes; y para cada adquiriente devuelve personaTipo, rfc, curp, nombres, apellidoPaterno, apellidoMaterno, telefono, correo, porcentajeDominioDirecto y porcentajeUsufructo en adquirientes. Extrae naturalezaActo y actoTraslativo usando el acto jurídico explícito. En descripcionAdquisicion devuelve el nombre breve del contrato: por ejemplo CONTRATO DE DACIÓN EN PAGO, CONTRATO DE COMPRAVENTA, CONTRATO DE DONACIÓN o CONTRATO DE FIDEICOMISO; no devuelvas montos ni una narración larga. Examina encabezado, comparecencia, declaraciones, cláusulas y certificaciones. No extraigas claves catastrales, folios prediales, tipo de predio, valores, superficies o linderos de la escritura. No obtengas datos fiscales de facturación desde la escritura y no decidas exenciones, parentesco, aplicación del artículo 39, cesión hereditaria ni trámite porcentual: esas condiciones requieren confirmación humana",
   "Avalúo":
     "valorOperacion, valorAvaluo y fechaAvaluo. Extrae exclusivamente esos tres datos del avalúo; no uses valores fiscales, catastrales, superficies ni otros importes para completar estos campos. Distingue expresamente el valor de operación del valor de avalúo y devuelve la fecha como YYYY-MM-DD",
   "Predial":
     "claveCatastral, folioReal, domicilio del inmueble, superficieTerreno, superficieConstruccion, valorFiscal y nombre del propietario",
   "Certificado de no adeudo predial":
-    "claveCatastral conservando o restituyendo sus guiones, folioPredio y tipoAsentamiento. Extrae únicamente esos valores cuando estén expresamente identificados en el certificado; no confundas el folio del predio con el folio del trámite o del recibo",
+    "claveCatastral conservando o restituyendo sus guiones, folioPredio y tipoAsentamiento. tipoAsentamiento debe ser exactamente URBANO, SUBURBANO, RÚSTICO o ESPECIAL según aparezca en la parte central del certificado. Extrae únicamente esos valores cuando estén expresamente identificados; no confundas el folio del predio con el folio del trámite o del recibo",
   "Certificado de libertad de gravamen":
     "ubicacionLinderos o medidasLinderos conservando completa la descripción de ubicación, medidas, rumbos, colindancias y linderos; además folioReal y claveCatastral cuando aparezcan. No resumas ni omitas colindancias",
   "Plano o medidas":
@@ -504,14 +504,6 @@ export default async function handler(
         "naturalezaActo",
         "descripcionAdquisicion",
         "actoTraslativo",
-        "claveCatastral",
-        "folioReal",
-        "ubicacionLinderos",
-        "superficieTerreno",
-        "superficieConstruccion",
-        "valorOperacion",
-        "antecedentesPropiedad",
-        "clasificacionInmueble",
       ];
     const vertexController = new AbortController();
     const vertexTimeout = setTimeout(() => vertexController.abort(), 210_000);
