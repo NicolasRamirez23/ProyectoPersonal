@@ -166,13 +166,26 @@ const inferDocumentType = (block: typeof documentBlocks[number], name: string) =
   return block.types[0] || 'Otro';
 };
 
+const normalizeForMatch = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+const matchCatalog = (value: string, options: string[]) => {
+  if (!value) return '';
+  const target = normalizeForMatch(value);
+  const exact = options.find((option) => normalizeForMatch(option) === target);
+  if (exact) return exact;
+  return options.find((option) => {
+    const normalizedOption = normalizeForMatch(option).replace(/^(?:I{1,3}|IV|V|VI{0,3}|IX|X{1,3}|38 III)[ A-Z]* /, '');
+    return normalizedOption.length >= 6 && (target.includes(normalizedOption) || normalizedOption.includes(target));
+  }) || value;
+};
+
 const normalizeExtracted = (raw: Record<string, unknown>): Record<string, string> => {
   const string = (key: string) => typeof raw[key] === 'string' ? String(raw[key]).trim() : '';
+  const list = (key: string) => Array.isArray(raw[key]) ? (raw[key] as unknown[]).filter((value): value is string => typeof value === 'string' && Boolean(value.trim())).join('\n') : '';
   const fullName = [string('nombres'), string('apellidoPaterno'), string('apellidoMaterno')].filter(Boolean).join(' ');
   return {
     nombres: string('nombres') || string('nombre'), apellidoPaterno: string('apellidoPaterno'), apellidoMaterno: string('apellidoMaterno'), rfc: string('rfc'), regimenFiscal: string('regimenFiscal'), codigoPostalFiscal: string('codigoPostal'), domicilioFiscal: string('domicilio'),
-    datosAdquiriente: fullName, escrituraNumero: string('numeroInstrumento'), volumen: string('volumen'), fechaEscritura: string('fechaInstrumento'), lugarOtorgamiento: string('lugarOtorgamiento'),
-    naturalezaActo: string('naturalezaActo'), descripcionAdquisicion: string('descripcionAdquisicion'), actoTraslativo: string('actoTraslativo'), fechaOtorgamiento: string('fechaOtorgamiento'), fechaFirma: string('fechaFirma'),
+    escrituraNumero: string('numeroInstrumento'), volumen: string('volumen'), fechaEscritura: string('fechaInstrumento'), lugarOtorgamiento: string('lugarOtorgamiento'),
+    naturalezaActo: matchCatalog(string('naturalezaActo'), naturalezaActoOptions), descripcionAdquisicion: string('descripcionAdquisicion'), actoTraslativo: matchCatalog(string('actoTraslativo'), actosTraslativos), fechaOtorgamiento: string('fechaOtorgamiento'), fechaFirma: string('fechaFirma'), estadoEscritura: string('estadoEscritura'), municipioEscritura: string('municipioEscritura'), datosEnajenante: list('enajenantes'), datosAdquiriente: list('adquirientes') || fullName,
     claveCatastral: string('claveCatastral'), folioPredio: string('folioPredio'), tipoAsentamiento: string('tipoAsentamiento'), folioReal: string('folioReal'), ubicacionLinderos: string('ubicacionLinderos') || string('medidasLinderos'), superficieTerreno: string('superficieTerreno'), superficieConstruccion: string('superficieConstruccion'),
     valorFiscal: string('valorFiscal'), valorOperacion: string('valorOperacion'), valorAvaluo: string('valorAvaluo'), fechaAvaluo: string('fechaAvaluo'), antecedentesPropiedad: string('antecedentesPropiedad'), clasificacionInmueble: string('clasificacionInmueble'),
     notificacionCalle: string('calle'), notificacionExterior: string('numeroExterior'), notificacionInterior: string('numeroInterior'), notificacionColonia: string('colonia'), notificacionEstado: string('estado'), notificacionCp: string('codigoPostal'), correoElectronico: string('correoElectronico'),
@@ -213,7 +226,7 @@ export function IsabiPage() {
           next.datosAdquiriente = summary.toUpperCase();
           return next;
         });
-        const allowedKeys = new Set(['nombre','nombres','apellidoPaterno','apellidoMaterno','rfc','domicilio','calle','numeroExterior','numeroInterior','colonia','ciudad','estado','codigoPostal','regimenFiscal','regimenesFiscales','numeroInstrumento','fechaInstrumento','lugarOtorgamiento','volumen','naturalezaActo','descripcionAdquisicion','actoTraslativo','fechaOtorgamiento','fechaFirma','claveCatastral','folioPredio','tipoAsentamiento','folioReal','ubicacionLinderos','medidasLinderos','superficieTerreno','superficieConstruccion','valorFiscal','valorOperacion','valorAvaluo','fechaAvaluo','antecedentesPropiedad','clasificacionInmueble','correoElectronico']);
+        const allowedKeys = new Set(['nombre','nombres','apellidoPaterno','apellidoMaterno','rfc','domicilio','calle','numeroExterior','numeroInterior','colonia','ciudad','estado','codigoPostal','regimenFiscal','regimenesFiscales','numeroInstrumento','fechaInstrumento','lugarOtorgamiento','volumen','naturalezaActo','descripcionAdquisicion','actoTraslativo','fechaOtorgamiento','fechaFirma','estadoEscritura','municipioEscritura','enajenantes','adquirientes','claveCatastral','folioPredio','tipoAsentamiento','folioReal','ubicacionLinderos','medidasLinderos','superficieTerreno','superficieConstruccion','valorFiscal','valorOperacion','valorAvaluo','fechaAvaluo','antecedentesPropiedad','clasificacionInmueble','correoElectronico']);
         const relevantData = Object.fromEntries(Object.entries(result.data as Record<string, unknown>).filter(([key]) => allowedKeys.has(key)));
         setDocuments((current) => [...current, { block: block.key, expectedType: result.type || expectedType || 'Otro', file, extractedData: relevantData, confidence: result.confidence, warnings: result.warnings || [] }]);
       }

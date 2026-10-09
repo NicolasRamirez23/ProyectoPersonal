@@ -112,6 +112,10 @@ const responseSchema = {
         actoTraslativo: { type: "STRING" },
         fechaOtorgamiento: { type: "STRING" },
         fechaFirma: { type: "STRING" },
+        estadoEscritura: { type: "STRING" },
+        municipioEscritura: { type: "STRING" },
+        enajenantes: { type: "ARRAY", items: { type: "STRING" } },
+        adquirientes: { type: "ARRAY", items: { type: "STRING" } },
         herederos: { type: "ARRAY", items: { type: "STRING" } },
         albacea: { type: "STRING" },
         disposicionPrincipal: { type: "STRING" },
@@ -163,7 +167,7 @@ const fieldsByType: Record<string, string> = {
   Poder:
     "nombre del poderdante, numeroDocumento para el apoderado, numeroInstrumento, fechaInstrumento, notario y numeroNotaria",
   Escritura:
-    "numeroInstrumento, volumen, fechaInstrumento, fechaOtorgamiento, fechaFirma, lugarOtorgamiento, notario, numeroNotaria, nombres de enajenantes y adquirientes, naturalezaActo usando el texto jurídico explícito del acto, descripcionAdquisicion, actoTraslativo, domicilio del inmueble, claveCatastral, folioReal, ubicacionLinderos, superficieTerreno, superficieConstruccion, valorOperacion, antecedentesPropiedad y clasificacionInmueble. No decidas exenciones, parentesco, aplicación del artículo 39, cesión hereditaria ni trámite porcentual: esas condiciones requieren confirmación humana",
+    "numeroInstrumento, volumen, fechaInstrumento, fechaOtorgamiento, fechaFirma, lugarOtorgamiento, estadoEscritura, municipioEscritura, notario, numeroNotaria, cada nombre completo de la parte enajenante en enajenantes, cada nombre completo de la parte adquiriente en adquirientes, naturalezaActo usando el texto jurídico explícito del acto, descripcionAdquisicion, actoTraslativo, domicilio del inmueble, claveCatastral, folioReal, ubicacionLinderos, superficieTerreno, superficieConstruccion, valorOperacion, antecedentesPropiedad y clasificacionInmueble. Examina encabezado, comparecencia, declaraciones, cláusulas y certificaciones. No decidas exenciones, parentesco, aplicación del artículo 39, cesión hereditaria ni trámite porcentual: esas condiciones requieren confirmación humana",
   "Avalúo":
     "claveCatastral, domicilio del inmueble, ubicacionLinderos, superficieTerreno, superficieConstruccion, valorAvaluo, fechaAvaluo, valorFiscal y clasificacionInmueble",
   "Predial":
@@ -408,7 +412,7 @@ export default async function handler(
     if (document.texto_extraido && document.texto_extraido.length >= 30) {
       parts = [
         {
-          text: `${instructions}\n\nTexto reconocido:\n${document.texto_extraido.slice(0, 30000)}`,
+          text: `${instructions}\n\nTexto reconocido:\n${document.texto_extraido.slice(0, 100000)}`,
         },
       ];
     } else {
@@ -466,6 +470,30 @@ export default async function handler(
         "herederos",
         "albacea",
         "disposicionPrincipal",
+      ];
+    if (document.tipo_indicado === "Escritura")
+      schema.properties.datos.required = [
+        "numeroInstrumento",
+        "volumen",
+        "fechaInstrumento",
+        "fechaOtorgamiento",
+        "fechaFirma",
+        "lugarOtorgamiento",
+        "estadoEscritura",
+        "municipioEscritura",
+        "enajenantes",
+        "adquirientes",
+        "naturalezaActo",
+        "descripcionAdquisicion",
+        "actoTraslativo",
+        "claveCatastral",
+        "folioReal",
+        "ubicacionLinderos",
+        "superficieTerreno",
+        "superficieConstruccion",
+        "valorOperacion",
+        "antecedentesPropiedad",
+        "clasificacionInmueble",
       ];
     const vertexController = new AbortController();
     const vertexTimeout = setTimeout(() => vertexController.abort(), 210_000);
