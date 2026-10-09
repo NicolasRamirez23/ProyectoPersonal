@@ -21,9 +21,11 @@ export const notaryInboxApi = {
     progress?.('Preparando el documento para la lectura con IA…');
     const visual = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(file.type);
     const sendOriginal = visual && file.size <= 2.5 * 1024 * 1024;
-    const local = sendOriginal
-      ? { text: '', type: expectedType, role: '', confidence: 0, data: {} as NotaryExtractedData }
-      : await analyzeNotaryDocument(file, progress, expectedType);
+    // Los PDF con texto digital se leen también localmente. Así conservamos
+    // domicilios, CP y regímenes aunque la lectura visual omita algún campo.
+    const local = file.type === 'application/pdf' || !sendOriginal
+      ? await analyzeNotaryDocument(file, progress, expectedType)
+      : { text: '', type: expectedType, role: '', confidence: 0, data: {} as NotaryExtractedData };
     let base64 = '';
     if (sendOriginal) {
       const bytes = new Uint8Array(await file.arrayBuffer());
@@ -55,7 +57,7 @@ export const notaryInboxApi = {
         type: result.documentType || expectedType,
         role: result.detectedRole || '',
         confidence: Number(result.confidence || 0),
-        data: (result.extractedData || {}) as NotaryExtractedData,
+        data: { ...local.data, ...(result.extractedData || {}) } as NotaryExtractedData,
         warnings: (result.warnings || []) as string[],
       };
     } catch (error) {

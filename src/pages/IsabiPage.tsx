@@ -22,7 +22,8 @@ const sections: Section[] = [
   { title: '3. Adquiriente y datos fiscales', subtitle: 'Información personal, fiscal y de facturación.', fields: [
     { key: 'rfc', label: 'RFC' }, { key: 'personaTipo', label: 'Tipo de persona', type: 'select', options: ['FÍSICA','MORAL'] }, { key: 'usoCfdi', label: 'Uso CFDI' },
     { key: 'regimenFiscal', label: 'Régimen fiscal', wide: true }, { key: 'nombres', label: 'Nombre(s)' }, { key: 'apellidoPaterno', label: 'Apellido paterno' }, { key: 'apellidoMaterno', label: 'Apellido materno' },
-    { key: 'codigoPostalFiscal', label: 'Código postal fiscal' }, { key: 'correoElectronico', label: 'Correo electrónico' }, { key: 'datosAdquiriente', label: 'Datos de identificación del adquiriente', type: 'textarea', wide: true },
+    { key: 'curp', label: 'CURP' }, { key: 'claveElector', label: 'Clave de elector' }, { key: 'codigoPostalFiscal', label: 'Código postal fiscal' }, { key: 'correoElectronico', label: 'Correo electrónico' },
+    { key: 'domicilioFiscal', label: 'Domicilio fiscal', type: 'textarea', wide: true }, { key: 'datosAdquiriente', label: 'Datos de identificación del adquiriente', type: 'textarea', wide: true },
   ]},
   { title: '4. Domicilio de notificación', subtitle: 'Domicilio que se capturará en el portal.', fields: [
     { key: 'notificacionEstado', label: 'Estado' }, { key: 'notificacionColonia', label: 'Colonia' }, { key: 'notificacionCp', label: 'Código postal' },
@@ -61,7 +62,7 @@ const normalizeExtracted = (raw: Record<string, unknown>): Record<string, string
   const string = (key: string) => typeof raw[key] === 'string' ? String(raw[key]).trim() : '';
   const fullName = [string('nombres'), string('apellidoPaterno'), string('apellidoMaterno')].filter(Boolean).join(' ');
   return {
-    nombres: string('nombres') || string('nombre'), apellidoPaterno: string('apellidoPaterno'), apellidoMaterno: string('apellidoMaterno'), rfc: string('rfc'), regimenFiscal: string('regimenFiscal'), codigoPostalFiscal: string('codigoPostal'),
+    nombres: string('nombres') || string('nombre'), apellidoPaterno: string('apellidoPaterno'), apellidoMaterno: string('apellidoMaterno'), rfc: string('rfc'), curp: string('curp'), claveElector: string('claveElector'), cic: string('cic'), ocr: string('ocr'), regimenFiscal: string('regimenFiscal'), codigoPostalFiscal: string('codigoPostal'), domicilioFiscal: string('domicilio'),
     datosAdquiriente: fullName, escrituraNumero: string('numeroInstrumento'), volumen: string('volumen'), fechaEscritura: string('fechaInstrumento'), lugarOtorgamiento: string('lugarOtorgamiento'),
     claveCatastral: string('claveCatastral'), folioReal: string('folioReal'), ubicacionLinderos: string('ubicacionLinderos') || string('medidasLinderos'), superficieTerreno: string('superficieTerreno'), superficieConstruccion: string('superficieConstruccion'),
     valorFiscal: string('valorFiscal'), valorOperacion: string('valorOperacion'), valorAvaluo: string('valorAvaluo'), fechaAvaluo: string('fechaAvaluo'), antecedentesPropiedad: string('antecedentesPropiedad'), clasificacionInmueble: string('clasificacionInmueble'),
@@ -89,7 +90,23 @@ export function IsabiPage() {
         const expectedType = inferDocumentType(block, file.name);
         const result = await notaryInboxApi.analyzeDraftWithAi(file, expectedType, setProgress);
         const normalized = normalizeExtracted(result.data as Record<string, unknown>);
-        setData((current) => { const next = { ...current }; for (const [key, value] of Object.entries(normalized)) if (value && !String(next[key] || '').trim()) next[key] = value.toUpperCase(); return next; });
+        setData((current) => {
+          const next = { ...current };
+          for (const [key, value] of Object.entries(normalized)) if (value && !String(next[key] || '').trim()) next[key] = value.toUpperCase();
+          const identityLines = [
+            normalized.datosAdquiriente && `NOMBRE: ${normalized.datosAdquiriente}`,
+            normalized.curp && `CURP: ${normalized.curp}`,
+            normalized.rfc && `RFC: ${normalized.rfc}`,
+            normalized.claveElector && `CLAVE DE ELECTOR: ${normalized.claveElector}`,
+            normalized.cic && `CIC: ${normalized.cic}`,
+            normalized.ocr && `OCR: ${normalized.ocr}`,
+            normalized.domicilioFiscal && `DOMICILIO: ${normalized.domicilioFiscal}`,
+          ].filter(Boolean) as string[];
+          let summary = String(next.datosAdquiriente || '');
+          for (const line of identityLines) if (!summary.toUpperCase().includes(line.toUpperCase())) summary = [summary, line].filter(Boolean).join('\n');
+          next.datosAdquiriente = summary.toUpperCase();
+          return next;
+        });
         setDocuments((current) => [...current, { block: block.key, expectedType: result.type || expectedType || 'Otro', file, extractedData: result.data as Record<string, unknown>, confidence: result.confidence, warnings: result.warnings || [] }]);
       }
       notify('success', 'Documentos analizados', 'Los datos encontrados se colocaron en campos vacíos. Revisa la información antes de guardar.');
