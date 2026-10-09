@@ -138,15 +138,15 @@ const sections: Section[] = [
   { title: '5. Inmueble transmitido', subtitle: 'Descripción, antecedentes, superficies y valores.', fields: [
     { key: 'clasificacionInmueble', label: 'Clasificación del inmueble', type: 'select', options: ['CASA HABITACIÓN','CASA HABITACIÓN EN OBRA NEGRA','LOTE DE TERRENO BALDÍO','LOCAL COMERCIAL','CASA HABITACIÓN CON LOCAL COMERCIAL','ALMACÉN','COCHERA','BIEN DE USO PÚBLICO'], wide: true }, { key: 'ubicacionLinderos', label: 'Ubicación, medidas y linderos (escritura)', type: 'textarea', wide: true },
     { key: 'superficieTerreno', label: 'Superficie del terreno', type: 'number' }, { key: 'superficieConstruccion', label: 'Superficie de construcción', type: 'number' }, { key: 'antecedentesPropiedad', label: 'Procedencia o antecedentes de propiedad', type: 'textarea', wide: true },
-    { key: 'folioReal', label: 'Folio real' }, { key: 'valorFiscal', label: 'Valor fiscal o catastral', type: 'number' }, { key: 'valorOperacion', label: 'Valor de operación', type: 'number' },
-    { key: 'valorAvaluo', label: 'Valor de avalúo', type: 'number' }, { key: 'fechaAvaluo', label: 'Fecha del avalúo', type: 'date' }, { key: 'observaciones', label: 'Observaciones', type: 'textarea', wide: true },
+    { key: 'folioReal', label: 'Folio real' }, { key: 'valorFiscal', label: 'Valor fiscal o catastral (no adeudo predial)', type: 'number' }, { key: 'valorOperacion', label: 'Valor de operación (escritura)', type: 'number' },
+    { key: 'valorAvaluo', label: 'Valor de avalúo (avalúo)', type: 'number' }, { key: 'fechaAvaluo', label: 'Fecha del avalúo', type: 'date' }, { key: 'observaciones', label: 'Observaciones', type: 'textarea', wide: true },
   ]},
 ];
 const documentBlocks = [
   { key: 'predial', title: 'Certificado de no adeudo predial', hint: 'Fuente de clave catastral, folio del predio y tipo de asentamiento.', minimum: 1, types: ['Certificado de no adeudo predial'] },
   { key: 'acto', title: 'Escritura', hint: 'Fuente de operación, instrumento, partes, medidas, colindancias y antecedentes. Se cruza con la clave del certificado predial.', minimum: 1, types: ['Escritura'] },
   { key: 'fiscalAdquiriente', title: 'CSF de cada adquiriente', hint: 'Sube una constancia por cada adquiriente. El sistema las relaciona por RFC, CURP o nombre; puedes seleccionar varios archivos.', minimum: 1, types: ['CSF'] },
-  { key: 'avaluo', title: 'Avalúo', hint: 'Fuente exclusiva del valor de operación, valor de avalúo y fecha del avalúo.', minimum: 1, types: ['Avalúo'] },
+  { key: 'avaluo', title: 'Avalúo', hint: 'Fuente exclusiva del valor de avalúo y fecha del avalúo.', minimum: 1, types: ['Avalúo'] },
   { key: 'inmueble', title: 'Otros documentos del inmueble', hint: 'Plano, predial o antecedente de propiedad, cuando correspondan.', minimum: 0, types: ['Plano o medidas','Predial','Antecedente de propiedad'] },
   { key: 'otros', title: 'Anexos adicionales', hint: 'Carta de no propiedad, poderes, permisos u otros anexos aplicables.', minimum: 0, types: ['Poder','Carta de no propiedad','Otro'] },
 ];
@@ -228,7 +228,9 @@ const extractPredialCertificateFallback = (text: string) => {
   const claveCatastral = formatClaveCatastral(cleanDigits(labeled || dashed));
   const folioPredio = normalizedText.match(/FOLIO\s+(?:DEL\s+)?PREDIO\s*[:#.-]?\s*([A-Z0-9-]{3,30})/i)?.[1] || '';
   const type = normalizedText.match(/\b(URBANO|SUBURBANO|R[ÚU]STICO|ESPECIAL)\b/i)?.[1] || '';
-  return { claveCatastral, folioPredio: folioPredio.trim(), tipoAsentamiento: type.toUpperCase().replace('RUSTICO', 'RÚSTICO') };
+  const rawFiscalValue = normalizedText.match(/VALOR\s+(?:FISCAL|CATASTRAL)\s*[:$.-]?\s*\$?\s*([0-9][0-9,.]{2,})/i)?.[1] || '';
+  const valorFiscal = rawFiscalValue.replace(/,/g, '');
+  return { claveCatastral, folioPredio: folioPredio.trim(), tipoAsentamiento: type.toUpperCase().replace('RUSTICO', 'RÚSTICO'), valorFiscal };
 };
 const extractAvaluoFallback = (text: string) => {
   const source = text.replace(/\r/g, ' ').replace(/\s+/g, ' ');
@@ -269,11 +271,10 @@ const normalizeExtracted = (raw: Record<string, unknown>): Record<string, string
   };
 };
 const formKeysByDocument: Record<string, string[]> = {
-  Escritura: ['naturalezaActo','descripcionAdquisicion','actoTraslativo','volumen','escrituraNumero','fechaEscritura','estadoEscritura','municipioEscritura','lugarOtorgamiento','fechaOtorgamiento','fechaFirma','datosEnajenante'],
-  'Certificado de no adeudo predial': ['claveCatastral','folioPredio','tipoPredio'],
+  Escritura: ['naturalezaActo','descripcionAdquisicion','actoTraslativo','volumen','escrituraNumero','fechaEscritura','estadoEscritura','municipioEscritura','lugarOtorgamiento','fechaOtorgamiento','fechaFirma','datosEnajenante','valorOperacion'],
+  'Certificado de no adeudo predial': ['claveCatastral','folioPredio','tipoPredio','valorFiscal'],
   CSF: ['nombres','apellidoPaterno','apellidoMaterno','rfc','personaTipo','regimenFiscal','codigoPostalFiscal','domicilioFiscal','datosAdquiriente'],
-  'Avalúo': ['valorOperacion','valorAvaluo','fechaAvaluo'],
-  Predial: ['valorFiscal'],
+  'Avalúo': ['valorAvaluo','fechaAvaluo'],
   'Plano o medidas': ['superficieTerreno','superficieConstruccion'],
   'Antecedente de propiedad': ['antecedentesPropiedad','folioReal'],
 };
@@ -341,10 +342,10 @@ export function IsabiPage() {
           if (!String(extractedData.claveCatastral || '').trim() && fallback.claveCatastral) extractedData.claveCatastral = fallback.claveCatastral;
           if (!String(extractedData.folioPredio || '').trim() && fallback.folioPredio) extractedData.folioPredio = fallback.folioPredio;
           if (!String(extractedData.tipoAsentamiento || '').trim() && fallback.tipoAsentamiento) extractedData.tipoAsentamiento = fallback.tipoAsentamiento;
+          if (fallback.valorFiscal) extractedData.valorFiscal = fallback.valorFiscal;
         }
         if (expectedType === 'Avalúo') {
           const fallback = extractAvaluoFallback(result.text || '');
-          if (fallback.valorOperacion) extractedData.valorOperacion = fallback.valorOperacion;
           if (fallback.valorAvaluo) extractedData.valorAvaluo = fallback.valorAvaluo;
           if (fallback.fechaAvaluo) extractedData.fechaAvaluo = fallback.fechaAvaluo;
         }
@@ -394,6 +395,9 @@ export function IsabiPage() {
             if (cartaEstado === 'NO') next.cartaNoPropiedad = false;
             const property = matchPropertyFromDeed(extractedData.inmueblesEscritura, next.claveCatastral);
             if (property) {
+              if (typeof property.clasificacionInmueble === 'string') next.clasificacionInmueble = matchCatalog(property.clasificacionInmueble, ['CASA HABITACIÓN','CASA HABITACIÓN EN OBRA NEGRA','LOTE DE TERRENO BALDÍO','LOCAL COMERCIAL','CASA HABITACIÓN CON LOCAL COMERCIAL','ALMACÉN','COCHERA','BIEN DE USO PÚBLICO']).toUpperCase();
+              if (typeof property.superficieTerreno === 'string') next.superficieTerreno = property.superficieTerreno.replace(/,/g, '');
+              if (typeof property.superficieConstruccion === 'string') next.superficieConstruccion = property.superficieConstruccion.replace(/,/g, '');
               if (typeof property.ubicacionLinderos === 'string') next.ubicacionLinderos = property.ubicacionLinderos.toUpperCase();
               if (typeof property.antecedentesPropiedad === 'string') next.antecedentesPropiedad = property.antecedentesPropiedad.toUpperCase();
             }
@@ -408,6 +412,9 @@ export function IsabiPage() {
             const deed = [...documents].reverse().find((document) => document.expectedType === 'Escritura');
             const property = matchPropertyFromDeed(deed?.extractedData?.inmueblesEscritura, normalized.claveCatastral);
             if (property) {
+              if (typeof property.clasificacionInmueble === 'string') next.clasificacionInmueble = matchCatalog(property.clasificacionInmueble, ['CASA HABITACIÓN','CASA HABITACIÓN EN OBRA NEGRA','LOTE DE TERRENO BALDÍO','LOCAL COMERCIAL','CASA HABITACIÓN CON LOCAL COMERCIAL','ALMACÉN','COCHERA','BIEN DE USO PÚBLICO']).toUpperCase();
+              if (typeof property.superficieTerreno === 'string') next.superficieTerreno = property.superficieTerreno.replace(/,/g, '');
+              if (typeof property.superficieConstruccion === 'string') next.superficieConstruccion = property.superficieConstruccion.replace(/,/g, '');
               if (typeof property.ubicacionLinderos === 'string') next.ubicacionLinderos = property.ubicacionLinderos.toUpperCase();
               if (typeof property.antecedentesPropiedad === 'string') next.antecedentesPropiedad = property.antecedentesPropiedad.toUpperCase();
             }

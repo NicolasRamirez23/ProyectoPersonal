@@ -143,10 +143,13 @@ const responseSchema = {
             type: "OBJECT",
             properties: {
               claveCatastral: { type: "STRING" },
+              clasificacionInmueble: { type: "STRING" },
+              superficieTerreno: { type: "STRING" },
+              superficieConstruccion: { type: "STRING" },
               ubicacionLinderos: { type: "STRING" },
               antecedentesPropiedad: { type: "STRING" },
             },
-            required: ["claveCatastral", "ubicacionLinderos", "antecedentesPropiedad"],
+            required: ["claveCatastral", "clasificacionInmueble", "superficieTerreno", "superficieConstruccion", "ubicacionLinderos", "antecedentesPropiedad"],
           },
         },
         herederos: { type: "ARRAY", items: { type: "STRING" } },
@@ -200,13 +203,13 @@ const fieldsByType: Record<string, string> = {
   Poder:
     "nombre del poderdante, numeroDocumento para el apoderado, numeroInstrumento, fechaInstrumento, notario y numeroNotaria",
   Escritura:
-    "Lee la escritura completa y devuelve todos estos datos: naturalezaActo; descripcionAdquisicion como nombre breve del contrato; cartaNoPropiedadEntregada con SI solamente si la escritura afirma que fue entregada, NO solamente si afirma que no fue entregada y NO INDICADO si no lo menciona; actoTraslativo; numeroInstrumento; volumen; fechaInstrumento; estadoEscritura; municipioEscritura; lugarOtorgamiento; fechaOtorgamiento; fechaFirma; notario y numeroNotaria. Devuelve cada nombre completo de la parte enajenante en enajenantes. Para cada adquiriente devuelve personaTipo, rfc, curp, nombres, apellidoPaterno, apellidoMaterno, telefono, correo, porcentajeDominioDirecto y porcentajeUsufructo en adquirientes; los porcentajes deben proceder exclusivamente de la escritura. Para cada inmueble objeto del contrato crea un elemento separado de inmueblesEscritura con su claveCatastral tal como aparezca, ubicacionLinderos transcribiendo ubicación, superficie, medidas, rumbos y todas las colindancias sin resumir, y antecedentesPropiedad transcribiendo específicamente el antecedente de adquisición con número de escritura, volumen, fecha, notario, notaría, datos de inscripción registral, registro, volumen registral, número, sección y fecha de inscripción. No mezcles datos entre inmuebles. Examina portada, encabezado, comparecencia, antecedentes, declaraciones, cláusulas, anexos y certificaciones. No uses las claves de la escritura para llenar la clave principal del trámite: sirven únicamente para relacionar el inmueble con la clave proveniente del certificado predial. No obtengas datos fiscales de facturación desde la escritura y no decidas exenciones, parentesco, aplicación del artículo 39, cesión hereditaria ni trámite porcentual: esas condiciones requieren confirmación humana",
+    "Lee la escritura completa y devuelve todos estos datos: naturalezaActo; descripcionAdquisicion como nombre breve del contrato; cartaNoPropiedadEntregada con SI solamente si la escritura afirma que fue entregada, NO solamente si afirma que no fue entregada y NO INDICADO si no lo menciona; actoTraslativo; numeroInstrumento; volumen; fechaInstrumento; estadoEscritura; municipioEscritura; lugarOtorgamiento; fechaOtorgamiento; fechaFirma; valorOperacion tomando exclusivamente el precio, contraprestación o valor total pactado de la operación y devolviéndolo como número decimal sin moneda ni separadores de miles; notario y numeroNotaria. Devuelve cada nombre completo de la parte enajenante en enajenantes. Para cada adquiriente devuelve personaTipo, rfc, curp, nombres, apellidoPaterno, apellidoMaterno, telefono, correo, porcentajeDominioDirecto y porcentajeUsufructo en adquirientes; los porcentajes deben proceder exclusivamente de la escritura. Para cada inmueble objeto del contrato crea un elemento separado de inmueblesEscritura con: claveCatastral tal como aparezca; clasificacionInmueble usando exactamente una de estas opciones cuando la descripción de la escritura permita identificarla: CASA HABITACIÓN, CASA HABITACIÓN EN OBRA NEGRA, LOTE DE TERRENO BALDÍO, LOCAL COMERCIAL, CASA HABITACIÓN CON LOCAL COMERCIAL, ALMACÉN, COCHERA o BIEN DE USO PÚBLICO; superficieTerreno y superficieConstruccion como números decimales sin unidades ni separadores de miles; ubicacionLinderos transcribiendo ubicación, medidas, rumbos y todas las colindancias sin resumir; y antecedentesPropiedad transcribiendo específicamente el antecedente de adquisición con número de escritura, volumen, fecha, notario, notaría, datos de inscripción registral, registro, volumen registral, número, sección y fecha de inscripción. No mezcles datos entre inmuebles. Examina portada, encabezado, comparecencia, antecedentes, declaraciones, cláusulas, anexos y certificaciones. No uses las claves de la escritura para llenar la clave principal del trámite: sirven únicamente para relacionar el inmueble con la clave proveniente del certificado predial. No obtengas datos fiscales de facturación desde la escritura y no decidas exenciones, parentesco, aplicación del artículo 39, cesión hereditaria ni trámite porcentual: esas condiciones requieren confirmación humana",
   "Avalúo":
-    "valorOperacion, valorAvaluo y fechaAvaluo. Busca en todas las páginas, especialmente portada, resumen, certificación y conclusión final. Para valorOperacion acepta únicamente etiquetas explícitas como VALOR DE OPERACIÓN, PRECIO DE OPERACIÓN o MONTO DE OPERACIÓN. Para valorAvaluo busca VALOR DE AVALÚO, VALOR COMERCIAL, CONCLUSIÓN DE VALOR, VALOR RESULTANTE o VALOR CONCLUIDO. Para fechaAvaluo usa FECHA DEL AVALÚO, FECHA DE AVALÚO, FECHA DEL INFORME o FECHA DE EMISIÓN del avalúo; no uses fecha de obligación, vigencia, visita, escritura ni impresión. Devuelve importes como números decimales sin signo de moneda ni separadores de miles y la fecha como YYYY-MM-DD. No uses valores fiscales, catastrales, superficies ni otros importes para completar estos campos",
+    "valorAvaluo y fechaAvaluo. Busca en todas las páginas, especialmente portada, resumen, certificación y conclusión final. Para valorAvaluo busca VALOR DE AVALÚO, VALOR COMERCIAL, CONCLUSIÓN DE VALOR, VALOR RESULTANTE o VALOR CONCLUIDO. Para fechaAvaluo usa FECHA DEL AVALÚO, FECHA DE AVALÚO, FECHA DEL INFORME o FECHA DE EMISIÓN del avalúo; no uses fecha de obligación, vigencia, visita, escritura ni impresión. Devuelve el importe como número decimal sin moneda ni separadores de miles y la fecha como YYYY-MM-DD. No extraigas valorOperacion ni valorFiscal del avalúo",
   "Predial":
     "claveCatastral, folioReal, domicilio del inmueble, superficieTerreno, superficieConstruccion, valorFiscal y nombre del propietario",
   "Certificado de no adeudo predial":
-    "claveCatastral conservando o restituyendo sus guiones, folioPredio y tipoAsentamiento. tipoAsentamiento debe ser exactamente URBANO, SUBURBANO, RÚSTICO o ESPECIAL según aparezca en la parte central del certificado. Extrae únicamente esos valores cuando estén expresamente identificados; no confundas el folio del predio con el folio del trámite o del recibo",
+    "claveCatastral conservando o restituyendo sus guiones, folioPredio, tipoAsentamiento y valorFiscal. tipoAsentamiento debe ser exactamente URBANO, SUBURBANO, RÚSTICO o ESPECIAL según aparezca en la parte central del certificado. valorFiscal debe tomarse exclusivamente del valor fiscal o catastral indicado en el certificado y devolverse como número decimal sin moneda ni separadores de miles. No confundas el folio del predio con el folio del trámite o del recibo",
   "Certificado de libertad de gravamen":
     "ubicacionLinderos o medidasLinderos conservando completa la descripción de ubicación, medidas, rumbos, colindancias y linderos; además folioReal y claveCatastral cuando aparezcan. No resumas ni omitas colindancias",
   "Plano o medidas":
@@ -520,6 +523,7 @@ export default async function handler(
         "descripcionAdquisicion",
         "actoTraslativo",
         "cartaNoPropiedadEntregada",
+        "valorOperacion",
         "inmueblesEscritura",
       ];
     if (document.tipo_indicado === "Certificado de no adeudo predial")
@@ -527,6 +531,7 @@ export default async function handler(
         "claveCatastral",
         "folioPredio",
         "tipoAsentamiento",
+        "valorFiscal",
       ];
     if (document.tipo_indicado === "CSF")
       schema.properties.datos.required = [
@@ -545,7 +550,6 @@ export default async function handler(
       ];
     if (document.tipo_indicado === "Avalúo")
       schema.properties.datos.required = [
-        "valorOperacion",
         "valorAvaluo",
         "fechaAvaluo",
       ];
