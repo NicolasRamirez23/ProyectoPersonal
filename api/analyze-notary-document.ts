@@ -134,6 +134,18 @@ const responseSchema = {
             required: ["personaTipo", "rfc", "curp", "nombres", "apellidoPaterno", "apellidoMaterno", "telefono", "correo", "porcentajeDominioDirecto", "porcentajeUsufructo"],
           },
         },
+        inmueblesEscritura: {
+          type: "ARRAY",
+          items: {
+            type: "OBJECT",
+            properties: {
+              claveCatastral: { type: "STRING" },
+              ubicacionLinderos: { type: "STRING" },
+              antecedentesPropiedad: { type: "STRING" },
+            },
+            required: ["claveCatastral", "ubicacionLinderos", "antecedentesPropiedad"],
+          },
+        },
         herederos: { type: "ARRAY", items: { type: "STRING" } },
         albacea: { type: "STRING" },
         disposicionPrincipal: { type: "STRING" },
@@ -185,7 +197,7 @@ const fieldsByType: Record<string, string> = {
   Poder:
     "nombre del poderdante, numeroDocumento para el apoderado, numeroInstrumento, fechaInstrumento, notario y numeroNotaria",
   Escritura:
-    "numeroInstrumento, volumen, fechaInstrumento, fechaOtorgamiento, fechaFirma, lugarOtorgamiento, estadoEscritura, municipioEscritura, notario, numeroNotaria, cada nombre completo de la parte enajenante en enajenantes; y para cada adquiriente devuelve personaTipo, rfc, curp, nombres, apellidoPaterno, apellidoMaterno, telefono, correo, porcentajeDominioDirecto y porcentajeUsufructo en adquirientes. Extrae naturalezaActo y actoTraslativo usando el acto jurídico explícito. En descripcionAdquisicion devuelve el nombre breve del contrato: por ejemplo CONTRATO DE DACIÓN EN PAGO, CONTRATO DE COMPRAVENTA, CONTRATO DE DONACIÓN o CONTRATO DE FIDEICOMISO; no devuelvas montos ni una narración larga. Examina encabezado, comparecencia, declaraciones, cláusulas y certificaciones. No extraigas claves catastrales, folios prediales, tipo de predio, valores, superficies o linderos de la escritura. No obtengas datos fiscales de facturación desde la escritura y no decidas exenciones, parentesco, aplicación del artículo 39, cesión hereditaria ni trámite porcentual: esas condiciones requieren confirmación humana",
+    "numeroInstrumento, volumen, fechaInstrumento, fechaOtorgamiento, fechaFirma, lugarOtorgamiento, estadoEscritura, municipioEscritura, notario, numeroNotaria, cada nombre completo de la parte enajenante en enajenantes; y para cada adquiriente devuelve personaTipo, rfc, curp, nombres, apellidoPaterno, apellidoMaterno, telefono, correo, porcentajeDominioDirecto y porcentajeUsufructo en adquirientes. Extrae naturalezaActo y actoTraslativo usando el acto jurídico explícito. En descripcionAdquisicion devuelve el nombre breve del contrato: por ejemplo CONTRATO DE DACIÓN EN PAGO, CONTRATO DE COMPRAVENTA, CONTRATO DE DONACIÓN o CONTRATO DE FIDEICOMISO; no devuelvas montos ni una narración larga. Para cada inmueble objeto del contrato crea un elemento de inmueblesEscritura con su claveCatastral tal como aparezca, ubicacionLinderos con ubicación, superficie, medidas, rumbos y todas las colindancias, y antecedentesPropiedad copiando específicamente el antecedente de adquisición con número de escritura, volumen, fecha, notario, datos de inscripción registral, sección y fecha de inscripción. No mezcles datos entre inmuebles. Examina encabezado, comparecencia, antecedentes, declaraciones, cláusulas y certificaciones. No uses las claves de la escritura para llenar la clave principal del trámite: sirven únicamente para relacionar el inmueble con la clave proveniente del certificado predial. No obtengas datos fiscales de facturación desde la escritura y no decidas exenciones, parentesco, aplicación del artículo 39, cesión hereditaria ni trámite porcentual: esas condiciones requieren confirmación humana",
   "Avalúo":
     "valorOperacion, valorAvaluo y fechaAvaluo. Extrae exclusivamente esos tres datos del avalúo; no uses valores fiscales, catastrales, superficies ni otros importes para completar estos campos. Distingue expresamente el valor de operación del valor de avalúo y devuelve la fecha como YYYY-MM-DD",
   "Predial":
@@ -504,6 +516,13 @@ export default async function handler(
         "naturalezaActo",
         "descripcionAdquisicion",
         "actoTraslativo",
+        "inmueblesEscritura",
+      ];
+    if (document.tipo_indicado === "Certificado de no adeudo predial")
+      schema.properties.datos.required = [
+        "claveCatastral",
+        "folioPredio",
+        "tipoAsentamiento",
       ];
     const vertexController = new AbortController();
     const vertexTimeout = setTimeout(() => vertexController.abort(), 210_000);

@@ -136,23 +136,22 @@ const sections: Section[] = [
     { key: 'notificacionCalle', label: 'Calle', wide: true, readOnly: true }, { key: 'notificacionExterior', label: 'Número exterior', readOnly: true }, { key: 'notificacionInterior', label: 'Número interior', readOnly: true },
   ]},
   { title: '5. Inmueble transmitido', subtitle: 'Descripción, antecedentes, superficies y valores.', fields: [
-    { key: 'clasificacionInmueble', label: 'Clasificación del inmueble', type: 'select', options: ['CASA HABITACIÓN','CASA HABITACIÓN EN OBRA NEGRA','LOTE DE TERRENO BALDÍO','LOCAL COMERCIAL','CASA HABITACIÓN CON LOCAL COMERCIAL','ALMACÉN','COCHERA','BIEN DE USO PÚBLICO'], wide: true }, { key: 'ubicacionLinderos', label: 'Ubicación, medidas y linderos (CLG)', type: 'textarea', wide: true },
+    { key: 'clasificacionInmueble', label: 'Clasificación del inmueble', type: 'select', options: ['CASA HABITACIÓN','CASA HABITACIÓN EN OBRA NEGRA','LOTE DE TERRENO BALDÍO','LOCAL COMERCIAL','CASA HABITACIÓN CON LOCAL COMERCIAL','ALMACÉN','COCHERA','BIEN DE USO PÚBLICO'], wide: true }, { key: 'ubicacionLinderos', label: 'Ubicación, medidas y linderos (escritura)', type: 'textarea', wide: true },
     { key: 'superficieTerreno', label: 'Superficie del terreno', type: 'number' }, { key: 'superficieConstruccion', label: 'Superficie de construcción', type: 'number' }, { key: 'antecedentesPropiedad', label: 'Procedencia o antecedentes de propiedad', type: 'textarea', wide: true },
     { key: 'folioReal', label: 'Folio real' }, { key: 'valorFiscal', label: 'Valor fiscal o catastral', type: 'number' }, { key: 'valorOperacion', label: 'Valor de operación', type: 'number' },
     { key: 'valorAvaluo', label: 'Valor de avalúo', type: 'number' }, { key: 'fechaAvaluo', label: 'Fecha del avalúo', type: 'date' }, { key: 'observaciones', label: 'Observaciones', type: 'textarea', wide: true },
   ]},
 ];
 const documentBlocks = [
-  { key: 'acto', title: 'Escritura', hint: 'Fuente de naturaleza, acto traslativo, instrumento, otorgamiento, enajenantes y adquirientes.', minimum: 1, types: ['Escritura'] },
   { key: 'predial', title: 'Certificado de no adeudo predial', hint: 'Fuente de clave catastral, folio del predio y tipo de asentamiento.', minimum: 1, types: ['Certificado de no adeudo predial'] },
+  { key: 'acto', title: 'Escritura', hint: 'Fuente de operación, instrumento, partes, medidas, colindancias y antecedentes. Se cruza con la clave del certificado predial.', minimum: 1, types: ['Escritura'] },
   { key: 'fiscalAdquiriente', title: 'CSF del adquiriente', hint: 'Fuente exclusiva de los datos fiscales y del nombre fiscal del adquiriente.', minimum: 1, types: ['CSF'] },
-  { key: 'clg', title: 'Certificado de libertad de gravamen (CLG)', hint: 'Fuente de ubicación, medidas y linderos.', minimum: 1, types: ['Certificado de libertad de gravamen'] },
   { key: 'avaluo', title: 'Avalúo', hint: 'Fuente exclusiva del valor de operación, valor de avalúo y fecha del avalúo.', minimum: 1, types: ['Avalúo'] },
   { key: 'inmueble', title: 'Otros documentos del inmueble', hint: 'Plano, predial o antecedente de propiedad, cuando correspondan.', minimum: 0, types: ['Plano o medidas','Predial','Antecedente de propiedad'] },
   { key: 'otros', title: 'Anexos adicionales', hint: 'Carta de no propiedad, poderes, permisos u otros anexos aplicables.', minimum: 0, types: ['Poder','Carta de no propiedad','Otro'] },
 ];
 const emptyParty = (): IsabiParty => ({ personaTipo: 'FÍSICA', rfc: '', curp: '', nombres: '', apellidoPaterno: '', apellidoMaterno: '', telefono: '', correo: '', porcentajeDominioDirecto: '', porcentajeUsufructo: '' });
-const initialData: IsabiData = { tipoPredio: 'URBANO', naturalezaActo: 'I-A. COMPRAVENTA', personaTipo: 'FÍSICA', usoCfdi: 'CP01 - PAGOS', lugarOtorgamiento: 'LA PAZ, B.C.S.', cartaNoPropiedad: false, entreConyugesParientes: false, aplicaArticulo39: false, cesionDerechosHereditarios: false, tramitePorcentaje: false, notificacionEstado: 'BAJA CALIFORNIA SUR', notificacionColonia: 'VICENTE GUERRERO', notificacionCp: '23020', notificacionCalle: '16 DE SEPTIEMBRE', notificacionExterior: '1685', notificacionInterior: 'SIN VALOR', correoElectronico: '', adquirientesDetalle: [] };
+const initialData: IsabiData = { tipoPredio: 'URBANO', naturalezaActo: 'I-A. COMPRAVENTA', personaTipo: 'FÍSICA', usoCfdi: 'CP01 - PAGOS', lugarOtorgamiento: 'LA PAZ, B.C.S.', cartaNoPropiedad: false, entreConyugesParientes: false, aplicaArticulo39: false, cesionDerechosHereditarios: false, tramitePorcentaje: false, notificacionEstado: 'BAJA CALIFORNIA SUR', notificacionColonia: 'VICENTE GUERRERO', notificacionCp: '23020', notificacionCalle: '16 DE SEPTIEMBRE', notificacionExterior: '1685', notificacionInterior: '', correoElectronico: '', adquirientesDetalle: [] };
 const inferDocumentType = (block: typeof documentBlocks[number], name: string) => {
   const normalized = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
   if (normalized.includes('AVALUO')) return 'Avalúo';
@@ -221,6 +220,16 @@ const formatClaveCatastral = (value: string) => {
   if (digits.length === 10) return digits.replace(/(\d)(\d{2})(\d{3})(\d{4})/, '$1-$2-$3-$4');
   return value;
 };
+const extractPredialCertificateFallback = (text: string) => {
+  const normalizedText = text.replace(/[–—]/g, '-').replace(/\r/g, '\n');
+  const labeled = normalizedText.match(/(?:CLAVE|CUENTA)\s+CATASTRAL(?:\s+DEL\s+PREDIO)?\s*[:#.-]?\s*([0-9OIL|]{1,4}(?:\s*-\s*[0-9OIL|]{1,4}){2,5}|[0-9OIL|]{9,16})/i)?.[1] || '';
+  const dashed = normalizedText.match(/\b[0-9OIL|]{1,4}(?:\s*-\s*[0-9OIL|]{1,4}){3,5}\b/i)?.[0] || '';
+  const cleanDigits = (value: string) => value.toUpperCase().replace(/[O]/g, '0').replace(/[IL|]/g, '1').replace(/\s+/g, '');
+  const claveCatastral = formatClaveCatastral(cleanDigits(labeled || dashed));
+  const folioPredio = normalizedText.match(/FOLIO\s+(?:DEL\s+)?PREDIO\s*[:#.-]?\s*([A-Z0-9-]{3,30})/i)?.[1] || '';
+  const type = normalizedText.match(/\b(URBANO|SUBURBANO|R[ÚU]STICO|ESPECIAL)\b/i)?.[1] || '';
+  return { claveCatastral, folioPredio: folioPredio.trim(), tipoAsentamiento: type.toUpperCase().replace('RUSTICO', 'RÚSTICO') };
+};
 
 const normalizeExtracted = (raw: Record<string, unknown>): Record<string, string> => {
   const string = (key: string) => typeof raw[key] === 'string' ? String(raw[key]).trim() : '';
@@ -239,11 +248,21 @@ const formKeysByDocument: Record<string, string[]> = {
   Escritura: ['naturalezaActo','descripcionAdquisicion','actoTraslativo','volumen','escrituraNumero','fechaEscritura','estadoEscritura','municipioEscritura','lugarOtorgamiento','fechaOtorgamiento','fechaFirma','datosEnajenante'],
   'Certificado de no adeudo predial': ['claveCatastral','folioPredio','tipoPredio'],
   CSF: ['nombres','apellidoPaterno','apellidoMaterno','rfc','regimenFiscal','codigoPostalFiscal','domicilioFiscal','datosAdquiriente'],
-  'Certificado de libertad de gravamen': ['ubicacionLinderos'],
   'Avalúo': ['valorOperacion','valorAvaluo','fechaAvaluo'],
   Predial: ['valorFiscal'],
   'Plano o medidas': ['superficieTerreno','superficieConstruccion'],
   'Antecedente de propiedad': ['antecedentesPropiedad','folioReal'],
+};
+const canonicalCadastralKey = (value: unknown) => String(value || '').replace(/\D/g, '');
+const matchPropertyFromDeed = (items: unknown, cadastralKey: unknown) => {
+  if (!Array.isArray(items)) return undefined;
+  const target = canonicalCadastralKey(cadastralKey);
+  const properties = items.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object');
+  if (target) {
+    const exact = properties.find((item) => canonicalCadastralKey(item.claveCatastral) === target);
+    if (exact) return exact;
+  }
+  return properties.length === 1 ? properties[0] : undefined;
 };
 
 export function IsabiPage() {
@@ -272,7 +291,14 @@ export function IsabiPage() {
         if (file.size > 15 * 1024 * 1024) throw new Error(`${file.name} supera 15 MB.`);
         const expectedType = inferDocumentType(block, file.name);
         const result = await notaryInboxApi.analyzeDraftWithAi(file, expectedType, setProgress);
-        const normalized = normalizeExtracted(result.data as Record<string, unknown>);
+        const extractedData = { ...(result.data as Record<string, unknown>) };
+        if (expectedType === 'Certificado de no adeudo predial') {
+          const fallback = extractPredialCertificateFallback(result.text || '');
+          if (!String(extractedData.claveCatastral || '').trim() && fallback.claveCatastral) extractedData.claveCatastral = fallback.claveCatastral;
+          if (!String(extractedData.folioPredio || '').trim() && fallback.folioPredio) extractedData.folioPredio = fallback.folioPredio;
+          if (!String(extractedData.tipoAsentamiento || '').trim() && fallback.tipoAsentamiento) extractedData.tipoAsentamiento = fallback.tipoAsentamiento;
+        }
+        const normalized = normalizeExtracted(extractedData);
         setData((current) => {
           const next = { ...current };
           if (expectedType === 'Carta de no propiedad') next.cartaNoPropiedad = true;
@@ -283,11 +309,26 @@ export function IsabiPage() {
             })) as IsabiParty[];
             if (parties.length) next.adquirientesDetalle = parties;
           }
+          if (expectedType === 'Escritura') {
+            const property = matchPropertyFromDeed(extractedData.inmueblesEscritura, next.claveCatastral);
+            if (property) {
+              if (typeof property.ubicacionLinderos === 'string') next.ubicacionLinderos = property.ubicacionLinderos.toUpperCase();
+              if (typeof property.antecedentesPropiedad === 'string') next.antecedentesPropiedad = property.antecedentesPropiedad.toUpperCase();
+            }
+          }
           const sourceKeys = new Set(formKeysByDocument[expectedType] || []);
           for (const [key, value] of Object.entries(normalized)) {
             if (!value || !sourceKeys.has(key)) continue;
             const mustReplace = expectedType === 'Escritura' || expectedType === 'Certificado de no adeudo predial' || expectedType === 'CSF' || expectedType === 'Certificado de libertad de gravamen' || expectedType === 'Avalúo';
             if (mustReplace || !String(next[key] || '').trim()) next[key] = value.toUpperCase();
+          }
+          if (expectedType === 'Certificado de no adeudo predial' && normalized.claveCatastral) {
+            const deed = [...documents].reverse().find((document) => document.expectedType === 'Escritura');
+            const property = matchPropertyFromDeed(deed?.extractedData?.inmueblesEscritura, normalized.claveCatastral);
+            if (property) {
+              if (typeof property.ubicacionLinderos === 'string') next.ubicacionLinderos = property.ubicacionLinderos.toUpperCase();
+              if (typeof property.antecedentesPropiedad === 'string') next.antecedentesPropiedad = property.antecedentesPropiedad.toUpperCase();
+            }
           }
           const identityLines = [
             normalized.datosAdquiriente && `NOMBRE: ${normalized.datosAdquiriente}`,
@@ -299,8 +340,8 @@ export function IsabiPage() {
           next.datosAdquiriente = summary.toUpperCase();
           return next;
         });
-        const allowedKeys = new Set(['nombre','nombres','apellidoPaterno','apellidoMaterno','rfc','domicilio','calle','numeroExterior','numeroInterior','colonia','ciudad','estado','codigoPostal','regimenFiscal','regimenesFiscales','numeroInstrumento','fechaInstrumento','lugarOtorgamiento','volumen','naturalezaActo','descripcionAdquisicion','actoTraslativo','fechaOtorgamiento','fechaFirma','estadoEscritura','municipioEscritura','enajenantes','adquirientes','claveCatastral','folioPredio','tipoAsentamiento','folioReal','ubicacionLinderos','medidasLinderos','superficieTerreno','superficieConstruccion','valorFiscal','valorOperacion','valorAvaluo','fechaAvaluo','antecedentesPropiedad','clasificacionInmueble','correoElectronico']);
-        const relevantData = Object.fromEntries(Object.entries(result.data as Record<string, unknown>).filter(([key]) => allowedKeys.has(key)));
+        const allowedKeys = new Set(['nombre','nombres','apellidoPaterno','apellidoMaterno','rfc','domicilio','calle','numeroExterior','numeroInterior','colonia','ciudad','estado','codigoPostal','regimenFiscal','regimenesFiscales','numeroInstrumento','fechaInstrumento','lugarOtorgamiento','volumen','naturalezaActo','descripcionAdquisicion','actoTraslativo','fechaOtorgamiento','fechaFirma','estadoEscritura','municipioEscritura','enajenantes','adquirientes','inmueblesEscritura','claveCatastral','folioPredio','tipoAsentamiento','folioReal','ubicacionLinderos','medidasLinderos','superficieTerreno','superficieConstruccion','valorFiscal','valorOperacion','valorAvaluo','fechaAvaluo','antecedentesPropiedad','clasificacionInmueble','correoElectronico']);
+        const relevantData = Object.fromEntries(Object.entries(extractedData).filter(([key]) => allowedKeys.has(key)));
         setDocuments((current) => [...current, { block: block.key, expectedType: result.type || expectedType || 'Otro', file, extractedData: relevantData, confidence: result.confidence, warnings: result.warnings || [] }]);
       }
       notify('success', 'Documentos analizados', 'Los datos encontrados se colocaron en campos vacíos. Revisa la información antes de guardar.');
