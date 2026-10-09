@@ -106,6 +106,11 @@ const responseSchema = {
         fechaInstrumento: { type: "STRING" },
         lugarOtorgamiento: { type: "STRING" },
         volumen: { type: "STRING" },
+        naturalezaActo: { type: "STRING" },
+        descripcionAdquisicion: { type: "STRING" },
+        actoTraslativo: { type: "STRING" },
+        fechaOtorgamiento: { type: "STRING" },
+        fechaFirma: { type: "STRING" },
         herederos: { type: "ARRAY", items: { type: "STRING" } },
         albacea: { type: "STRING" },
         disposicionPrincipal: { type: "STRING" },
@@ -155,7 +160,7 @@ const fieldsByType: Record<string, string> = {
   Poder:
     "nombre del poderdante, numeroDocumento para el apoderado, numeroInstrumento, fechaInstrumento, notario y numeroNotaria",
   Escritura:
-    "numeroInstrumento, volumen, fechaInstrumento, lugarOtorgamiento, notario, numeroNotaria, nombres de enajenantes y adquirientes, domicilio del inmueble, claveCatastral, folioReal, ubicacionLinderos, superficieTerreno, superficieConstruccion, valorOperacion, antecedentesPropiedad y clasificacionInmueble",
+    "numeroInstrumento, volumen, fechaInstrumento, fechaOtorgamiento, fechaFirma, lugarOtorgamiento, notario, numeroNotaria, nombres de enajenantes y adquirientes, naturalezaActo usando el texto jurídico explícito del acto, descripcionAdquisicion, actoTraslativo, domicilio del inmueble, claveCatastral, folioReal, ubicacionLinderos, superficieTerreno, superficieConstruccion, valorOperacion, antecedentesPropiedad y clasificacionInmueble. No decidas exenciones, parentesco, aplicación del artículo 39, cesión hereditaria ni trámite porcentual: esas condiciones requieren confirmación humana",
   "Avalúo":
     "claveCatastral, domicilio del inmueble, ubicacionLinderos, superficieTerreno, superficieConstruccion, valorAvaluo, fechaAvaluo, valorFiscal y clasificacionInmueble",
   "Predial":

@@ -46,7 +46,7 @@ drop policy if exists "Notaria gestiona documentos ISABI" on public.notaria_isab
 create policy "Notaria gestiona documentos ISABI" on public.notaria_isabi_documentos for all to authenticated using (public.puede_gestionar_notaria()) with check (public.puede_gestionar_notaria());
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('expedientes-isabi', 'expedientes-isabi', false, 15728640, array['application/pdf','image/jpeg','image/png','image/webp'])
+values ('expedientes-isabi', 'expedientes-isabi', false, 15728640, array['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','image/jpeg','image/png','image/webp'])
 on conflict (id) do update set public = excluded.public, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
 
 drop policy if exists "Notaria lee documentos ISABI" on storage.objects;
