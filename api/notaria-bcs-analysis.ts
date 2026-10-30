@@ -74,7 +74,7 @@ export default async function handler(req:any,res:any){
     if(!timingSafeEqual(wanted,Buffer.from(signature,'hex')))return send(401,{ok:false});
     const input=JSON.parse(raw);
     if(Object.keys(input).some(k=>!['requestId','mimeType','data','expectedType','firstPage','lastPage'].includes(k))||!allowedTypes.includes(input.expectedType)||!Number.isInteger(input.firstPage)||!Number.isInteger(input.lastPage)||input.firstPage<1||input.lastPage<input.firstPage||input.lastPage-input.firstPage>=10||!['application/pdf','image/png','image/jpeg'].includes(input.mimeType)||typeof input.data!=='string'||!/^[A-Za-z0-9+/]+={0,2}$/.test(input.data)||Buffer.from(input.data,'base64').length>2500000)return send(400,{ok:false,message:'Documento no válido.'});
-    const oidc=process.env.VERCEL_OIDC_TOKEN,project=process.env.GCP_PROJECT_ID,location=process.env.GCP_LOCATION||'global',model=process.env.VERTEX_MODEL;
+    const oidc=String(req.headers['x-vercel-oidc-token']||process.env.VERCEL_OIDC_TOKEN||''),project=process.env.GCP_PROJECT_ID,location=process.env.GCP_LOCATION||'global',model=process.env.VERTEX_MODEL;
     if(!oidc||!project||!model)return send(503,{ok:false,message:'Vertex AI no está configurado.'});
     const accessToken=await googleAccessToken(oidc);
     const host=location==='global'?'aiplatform.googleapis.com':location+'-aiplatform.googleapis.com';
